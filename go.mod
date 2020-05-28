@@ -12,5 +12,6 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
 	github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7
+	github.com/vx-labs/wasp v1.0.9
 	google.golang.org/grpc v1.29.1
 )
