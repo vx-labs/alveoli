@@ -8,6 +8,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
 	github.com/julienschmidt/httprouter v1.3.0
+	github.com/rs/cors v1.7.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
 	github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7

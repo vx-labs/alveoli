@@ -11,6 +11,7 @@ import (
 	jwtmiddleware "github.com/auth0/go-jwt-middleware"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/julienschmidt/httprouter"
+	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vx-labs/alveoli/alveoli/rpc"
@@ -100,7 +101,15 @@ func main() {
 			router.GET("/devices/", ListDevices(api.NewVespiaryClient(authConn)))
 			router.GET("/devices/:device_id", GetDevice(api.NewVespiaryClient(authConn)))
 
-			log.Fatal(http.ListenAndServe(":8080", jwtMiddleware.Handler(router)))
+			corsHandler := cors.New(cors.Options{
+				AllowedHeaders: []string{
+					"authorization",
+					"x-vx-product",
+				},
+				AllowCredentials: true,
+			})
+
+			log.Fatal(http.ListenAndServe(":8080", corsHandler.Handler(jwtMiddleware.Handler(router))))
 		},
 	}
 	cmd.Flags().Bool("insecure", false, "Disable GRPC client-side TLS validation.")

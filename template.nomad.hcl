@@ -10,7 +10,7 @@ job "alveoli" {
     canary           = 0
   }
 
-  group "server" {
+  group "alveoli" {
     vault {
       policies      = ["nomad-tls-storer"]
       change_mode   = "signal"
@@ -31,7 +31,7 @@ job "alveoli" {
       size = 2000
     }
 
-    task "tcp-listener" {
+    task "server" {
       driver = "docker"
 
       env {
@@ -149,19 +149,6 @@ EOH
         check {
           type     = "tcp"
           port     = "http"
-          interval = "30s"
-          timeout  = "2s"
-        }
-      }
-      service {
-        name = "alveoli"
-        port = "metrics"
-        tags = ["prometheus", "${service_version}"]
-
-        check {
-          type     = "http"
-          path     = "/metrics"
-          port     = "metrics"
           interval = "30s"
           timeout  = "2s"
         }
