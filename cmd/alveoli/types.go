@@ -10,4 +10,5 @@ type Device struct {
 	ReceivedBytes     int64  `json:"receivedBytes"`
 	SentBytes         int64  `json:"sentBytes"`
 	SubscriptionCount int    `json:"subscriptionCount"`
+	HumanStatus       string `json:"humanStatus"`
 }

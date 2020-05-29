@@ -94,9 +94,8 @@ func fillWithMetadata(tenant string, sessions []*wasp.SessionMetadatas, client *
 func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscriptionRequest, client *Device) {
 	for idx := range subscriptions {
 		subscription := subscriptions[idx]
-		if bytes.HasPrefix(subscription.Pattern, []byte(tenant)) && subscription.SessionID == client.ID {
+		if bytes.HasPrefix(subscription.Pattern, []byte(tenant)) && subscription.SessionID == client.Name {
 			client.SubscriptionCount++
-			return
 		}
 	}
 }
@@ -145,6 +144,15 @@ func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, dom
 			}
 			fillWithMetadata(tenant, sessions.SessionMetadatasList, &out[idx])
 			fillWithSubscriptions(tenant, subscriptions.Subscriptions, &out[idx])
+			if out[idx].Active {
+				if out[idx].Connected {
+					out[idx].HumanStatus = "online"
+				} else {
+					out[idx].HumanStatus = "offline"
+				}
+			} else {
+				out[idx].HumanStatus = "disabled"
+			}
 		}
 		json.NewEncoder(w).Encode(out)
 	}
