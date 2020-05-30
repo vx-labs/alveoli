@@ -68,7 +68,7 @@ func getPemCert(domain string, token *jwt.Token) (string, error) {
 		return cert, err
 	}
 
-	for k, _ := range jwks.Keys {
+	for k := range jwks.Keys {
 		if token.Header["kid"] == jwks.Keys[k].Kid {
 			cert = "-----BEGIN CERTIFICATE-----\n" + jwks.Keys[k].X5c[0] + "\n-----END CERTIFICATE-----"
 		}
@@ -113,19 +113,20 @@ func auth0Middleware(domain, apiID string) Provider {
 
 func userEmail(domain, header string) (string, error) {
 	email := ""
-	url := fmt.Sprintf("%suserinfo", domain)
+	url := fmt.Sprintf("https://%s/userinfo", domain)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return email, err
 	}
 	req.Header.Add("Authorization", header)
 	resp, err := http.DefaultClient.Do(req)
-
 	if err != nil {
 		return email, err
 	}
 	defer resp.Body.Close()
-
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("failed to resolve userinfo: got http status code %d", resp.StatusCode)
+	}
 	var profile = Profile{}
 	err = json.NewDecoder(resp.Body).Decode(&profile)
 
@@ -136,7 +137,9 @@ func userEmail(domain, header string) (string, error) {
 }
 
 func (l *auth0Wrapper) getTenant(r *http.Request) (string, error) {
-	tenant, err := userEmail(l.domain, r.Header.Get("Authorization"))
+	authzHeader := r.Header.Get("Authorization")
+	log.Printf(authzHeader)
+	tenant, err := userEmail(l.domain, authzHeader)
 	if err != nil {
 		log.Print(err)
 		return "", nil
@@ -157,7 +160,7 @@ func (l *auth0Wrapper) Handler(h http.Handler) http.Handler {
 	jwtMiddlware := auth0Middleware(l.domain, l.apiID)
 	return jwtMiddlware.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tenant, err := l.getTenant(r)
-		if err != nil {
+		if err != nil || tenant == "" {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"message": "permission denied", "status_code": 403}`))
 			return
