@@ -3,48 +3,20 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
-	jwtmiddleware "github.com/auth0/go-jwt-middleware"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/vx-labs/alveoli/alveoli/auth"
 	"github.com/vx-labs/alveoli/alveoli/rpc"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/wasp/api"
 )
-
-type Logger struct {
-	handler http.Handler
-}
-
-func (l *Logger) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	defer func() {
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
-	}()
-	l.handler.ServeHTTP(w, r)
-}
-
-func getTenant(domain string, r *http.Request) (string, error) {
-	email, err := userEmail(domain, r.Header.Get("Authorization"))
-	if err != nil {
-		log.Print(err)
-		return "", nil
-	}
-	// Temp hack to avoid test devices migration
-	if email == "julien@bonachera.fr" {
-		email = "vx:psk"
-	}
-	return email, nil
-}
 
 type UpdateManifest struct {
 	Active *bool `json:"active"`
@@ -52,14 +24,9 @@ type UpdateManifest struct {
 
 func UpdateDevice(client vespiary.VespiaryClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		tenant, err := getTenant(domain, r)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(500)
-			return
-		}
+		authContext := auth.Informations(r.Context())
 		manifest := UpdateManifest{}
-		err = json.NewDecoder(r.Body).Decode(&manifest)
+		err := json.NewDecoder(r.Body).Decode(&manifest)
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(400)
@@ -68,9 +35,9 @@ func UpdateDevice(client vespiary.VespiaryClient, domain string) func(w http.Res
 		}
 		if manifest.Active != nil {
 			if *manifest.Active == false {
-				_, err = client.DisableDevice(r.Context(), &vespiary.DisableDeviceRequest{Owner: tenant, ID: ps.ByName("device_id")})
+				_, err = client.DisableDevice(r.Context(), &vespiary.DisableDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
 			} else {
-				_, err = client.EnableDevice(r.Context(), &vespiary.EnableDeviceRequest{Owner: tenant, ID: ps.ByName("device_id")})
+				_, err = client.EnableDevice(r.Context(), &vespiary.EnableDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
 			}
 			if err != nil {
 				log.Print(err)
@@ -102,29 +69,26 @@ func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscripti
 
 func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		tenant, err := getTenant(domain, r)
+		authContext := auth.Informations(r.Context())
+		authDevices, err := client.ListDevices(r.Context(), &vespiary.ListDevicesRequest{Owner: authContext.Tenant})
 		if err != nil {
 			log.Print(err)
-			w.WriteHeader(500)
-			return
-		}
-
-		authDevices, err := client.ListDevices(r.Context(), &vespiary.ListDevicesRequest{Owner: tenant})
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch device list"}`))
 			return
 		}
 		sessions, err := waspClient.ListSessionMetadatas(r.Context(), &wasp.ListSessionMetadatasRequest{})
 		if err != nil {
 			log.Print(err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch connected sessions list"}`))
 			return
 		}
 		subscriptions, err := waspClient.ListSubscriptions(r.Context(), &wasp.ListSubscriptionsRequest{})
 		if err != nil {
 			log.Print(err)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch subscription list"}`))
 			return
 		}
 
@@ -142,8 +106,8 @@ func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, dom
 				ReceivedBytes:     0,
 				SubscriptionCount: 0,
 			}
-			fillWithMetadata(tenant, sessions.SessionMetadatasList, &out[idx])
-			fillWithSubscriptions(tenant, subscriptions.Subscriptions, &out[idx])
+			fillWithMetadata(authContext.Tenant, sessions.SessionMetadatasList, &out[idx])
+			fillWithSubscriptions(authContext.Tenant, subscriptions.Subscriptions, &out[idx])
 			if out[idx].Active {
 				if out[idx].Connected {
 					out[idx].HumanStatus = "online"
@@ -159,14 +123,9 @@ func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, dom
 }
 func GetDevice(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		tenant, err := getTenant(domain, r)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(500)
-			return
-		}
+		authContext := auth.Informations(r.Context())
 
-		device, err := client.GetDevice(r.Context(), &vespiary.GetDeviceRequest{Owner: tenant, ID: ps.ByName("device_id")})
+		device, err := client.GetDevice(r.Context(), &vespiary.GetDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(500)
@@ -178,14 +137,9 @@ func GetDevice(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, domai
 
 func DeleteDevice(client vespiary.VespiaryClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		tenant, err := getTenant(domain, r)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(500)
-			return
-		}
+		authContext := auth.Informations(r.Context())
 
-		_, err = client.DeleteDevice(r.Context(), &vespiary.DeleteDeviceRequest{Owner: tenant, ID: ps.ByName("device_id")})
+		_, err := client.DeleteDevice(r.Context(), &vespiary.DeleteDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(500)
@@ -207,31 +161,15 @@ func main() {
 		Run: func(cmd *cobra.Command, _ []string) {
 			router := httprouter.New()
 
-			jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
-				ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-					// Verify 'aud' claim
-					aud := config.GetString("auth0-api-id")
-					checkAud := token.Claims.(jwt.MapClaims).VerifyAudience(aud, false)
-					if !checkAud {
-						return token, errors.New("Invalid audience")
-					}
-					// Verify 'iss' claim
-					iss := fmt.Sprintf("https://%s/", config.GetString("auth0-client-domain"))
-					checkIss := token.Claims.(jwt.MapClaims).VerifyIssuer(iss, false)
-					if !checkIss {
-						return token, errors.New("Invalid issuer")
-					}
-
-					cert, err := getPemCert(iss, token)
-					if err != nil {
-						panic(err.Error())
-					}
-
-					result, _ := jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
-					return result, nil
-				},
-				SigningMethod: jwt.SigningMethodRS256,
-			})
+			var authProvider auth.Provider
+			switch config.GetString("authentication-provider") {
+			case "static":
+				authProvider = auth.Static(config.GetString("authentication-provider-static-tenant"))
+			case "auth0":
+				authProvider = auth.Auth0(config.GetString("auth0-client-domain"), config.GetString("auth0-api-id"))
+			default:
+				panic("unknown authentication provider specified")
+			}
 
 			rpcDialer := rpc.GRPCDialer(rpc.ClientConfig{
 				InsecureSkipVerify:          config.GetBool("insecure"),
@@ -272,7 +210,7 @@ func main() {
 				AllowCredentials: true,
 			})
 			port := fmt.Sprintf(":%d", config.GetInt("port"))
-			log.Fatal(http.ListenAndServe(port, corsHandler.Handler(&Logger{handler: jwtMiddleware.Handler(router)})))
+			log.Fatal(http.ListenAndServe(port, corsHandler.Handler(&Logger{handler: authProvider.Handler(router)})))
 		},
 	}
 	cmd.Flags().Bool("insecure", false, "Disable GRPC client-side TLS validation.")
@@ -284,7 +222,8 @@ func main() {
 	cmd.Flags().String("auth0-client-domain", "", "Auth0 client domain.")
 	cmd.Flags().String("auth0-api-id", "", "Auth0 API ID.")
 	cmd.Flags().Int("port", 8080, "Run REST API on this port.")
-
+	cmd.Flags().String("authentication-provider", "auth0", "How shall we authenticate user requests? Supported values are auth0 and static.")
+	cmd.Flags().String("authentication-provider-static-tenant", "vx:psk", "The default tenant to use when using static authentication provider.")
 	cmd.AddCommand(TLSHelper(config))
 
 	cmd.Execute()
