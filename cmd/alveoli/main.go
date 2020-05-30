@@ -58,11 +58,22 @@ func fillWithMetadata(tenant string, sessions []*wasp.SessionMetadatas, client *
 	}
 }
 
-func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscriptionRequest, client *Device) {
+func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscriptionRequest, sessions []*wasp.SessionMetadatas, client *Device) {
+
 	for idx := range subscriptions {
+		sessionID := ""
 		subscription := subscriptions[idx]
-		if bytes.HasPrefix(subscription.Pattern, []byte(tenant)) && subscription.SessionID == client.Name {
-			client.SubscriptionCount++
+
+		for sessionIdx := range sessions {
+			session := sessions[sessionIdx]
+			if session.ClientID == client.Name {
+				sessionID = session.SessionID
+			}
+		}
+		if sessionID != "" {
+			if bytes.HasPrefix(subscription.Pattern, []byte(tenant)) && subscription.SessionID == sessionID {
+				client.SubscriptionCount++
+			}
 		}
 	}
 }
@@ -81,7 +92,7 @@ func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, dom
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch connected sessions list"}`))
+			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch connected session list"}`))
 			return
 		}
 		subscriptions, err := waspClient.ListSubscriptions(r.Context(), &wasp.ListSubscriptionsRequest{})
@@ -107,7 +118,7 @@ func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, dom
 				SubscriptionCount: 0,
 			}
 			fillWithMetadata(authContext.Tenant, sessions.SessionMetadatasList, &out[idx])
-			fillWithSubscriptions(authContext.Tenant, subscriptions.Subscriptions, &out[idx])
+			fillWithSubscriptions(authContext.Tenant, subscriptions.Subscriptions, sessions.SessionMetadatasList, &out[idx])
 			if out[idx].Active {
 				if out[idx].Connected {
 					out[idx].HumanStatus = "online"
