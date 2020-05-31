@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,151 +11,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vx-labs/alveoli/alveoli/auth"
+	"github.com/vx-labs/alveoli/alveoli/handlers"
 	"github.com/vx-labs/alveoli/alveoli/rpc"
+	nest "github.com/vx-labs/nest/nest/api"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/wasp/api"
 )
-
-type UpdateManifest struct {
-	Active *bool `json:"active"`
-}
-
-func UpdateDevice(client vespiary.VespiaryClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		authContext := auth.Informations(r.Context())
-		manifest := UpdateManifest{}
-		err := json.NewDecoder(r.Body).Decode(&manifest)
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(err)
-			return
-		}
-		if manifest.Active != nil {
-			if *manifest.Active == false {
-				_, err = client.DisableDevice(r.Context(), &vespiary.DisableDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
-			} else {
-				_, err = client.EnableDevice(r.Context(), &vespiary.EnableDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
-			}
-			if err != nil {
-				log.Print(err)
-				w.WriteHeader(500)
-				return
-			}
-		}
-	}
-}
-
-func fillWithMetadata(tenant string, sessions []*wasp.SessionMetadatas, client *Device) {
-	for idx := range sessions {
-		session := sessions[idx]
-		if session.MountPoint == tenant && session.ClientID == client.Name {
-			client.Connected = true
-			return
-		}
-	}
-}
-
-func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscriptionRequest, sessions []*wasp.SessionMetadatas, client *Device) {
-
-	for idx := range subscriptions {
-		sessionID := ""
-		subscription := subscriptions[idx]
-
-		for sessionIdx := range sessions {
-			session := sessions[sessionIdx]
-			if session.ClientID == client.Name {
-				sessionID = session.SessionID
-			}
-		}
-		if sessionID != "" {
-			if bytes.HasPrefix(subscription.Pattern, []byte(tenant)) && subscription.SessionID == sessionID {
-				client.SubscriptionCount++
-			}
-		}
-	}
-}
-
-func ListDevices(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		authContext := auth.Informations(r.Context())
-		authDevices, err := client.ListDevices(r.Context(), &vespiary.ListDevicesRequest{Owner: authContext.Tenant})
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch device list"}`))
-			return
-		}
-		sessions, err := waspClient.ListSessionMetadatas(r.Context(), &wasp.ListSessionMetadatasRequest{})
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch connected session list"}`))
-			return
-		}
-		subscriptions, err := waspClient.ListSubscriptions(r.Context(), &wasp.ListSubscriptionsRequest{})
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte(`{"status_code": 502, "message": "failed to fetch subscription list"}`))
-			return
-		}
-
-		out := make([]Device, len(authDevices.Devices))
-		for idx := range out {
-			out[idx] = Device{
-				ID:        authDevices.Devices[idx].ID,
-				Name:      authDevices.Devices[idx].Name,
-				Active:    authDevices.Devices[idx].Active,
-				CreatedAt: authDevices.Devices[idx].CreatedAt,
-				Password:  authDevices.Devices[idx].Password,
-
-				Connected:         false,
-				SentBytes:         0,
-				ReceivedBytes:     0,
-				SubscriptionCount: 0,
-			}
-			fillWithMetadata(authContext.Tenant, sessions.SessionMetadatasList, &out[idx])
-			fillWithSubscriptions(authContext.Tenant, subscriptions.Subscriptions, sessions.SessionMetadatasList, &out[idx])
-			if out[idx].Active {
-				if out[idx].Connected {
-					out[idx].HumanStatus = "online"
-				} else {
-					out[idx].HumanStatus = "offline"
-				}
-			} else {
-				out[idx].HumanStatus = "disabled"
-			}
-		}
-		json.NewEncoder(w).Encode(out)
-	}
-}
-func GetDevice(client vespiary.VespiaryClient, waspClient wasp.MQTTClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		authContext := auth.Informations(r.Context())
-
-		device, err := client.GetDevice(r.Context(), &vespiary.GetDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(500)
-			return
-		}
-		json.NewEncoder(w).Encode(device.Device)
-	}
-}
-
-func DeleteDevice(client vespiary.VespiaryClient, domain string) func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		authContext := auth.Informations(r.Context())
-
-		_, err := client.DeleteDevice(r.Context(), &vespiary.DeleteDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
-		if err != nil {
-			log.Print(err)
-			w.WriteHeader(500)
-			return
-		}
-	}
-}
 
 func main() {
 	config := viper.New()
@@ -197,14 +56,15 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+			nestConn, err := rpcDialer("messages.iot.cloud.vx-labs.net:443")
+			if err != nil {
+				panic(err)
+			}
 
-			domain := fmt.Sprintf("https://%s/", config.GetString("auth0-client-domain"))
 			authClient := vespiary.NewVespiaryClient(authConn)
 			waspClient := wasp.NewMQTTClient(brokerConn)
-			router.GET("/devices/", ListDevices(authClient, waspClient, domain))
-			router.GET("/devices/:device_id", GetDevice(authClient, waspClient, domain))
-			router.PATCH("/devices/:device_id", UpdateDevice(authClient, domain))
-			router.DELETE("/devices/:device_id", DeleteDevice(authClient, domain))
+			nestClient := nest.NewMessagesClient(nestConn)
+			handlers.Register(router, authClient, nestClient, waspClient)
 
 			corsHandler := cors.New(cors.Options{
 				AllowedMethods: []string{
