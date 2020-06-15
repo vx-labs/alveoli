@@ -33,8 +33,8 @@ type Topic struct {
 	ID           string `json:"id,omitempty"`
 	Name         string `json:"name,omitempty"`
 	MessageCount uint64 `json:"messageCount,omitempty"`
-	SizeInBytes  uint64 `json:"size_in_bytes,omitempty"`
-	LastRecord   Record `json:"last_record,omitempty"`
+	SizeInBytes  uint64 `json:"sizeInBbytes,omitempty"`
+	LastRecord   Record `json:"lastRecord,omitempty"`
 }
 
 type Record struct {
