@@ -29,32 +29,38 @@ func registerTopics(router *httprouter.Router, nestClient nest.MessagesClient) {
 	router.POST("/topics/", topics.Get())
 }
 
-type topic struct {
-	ID           string `json:"id"`
+type Topic struct {
+	ID           string `json:"id,omitempty"`
 	Name         string `json:"name,omitempty"`
 	MessageCount uint64 `json:"messageCount,omitempty"`
+	SizeInBytes  uint64 `json:"size_in_bytes,omitempty"`
+	LastRecord   Record `json:"last_record,omitempty"`
 }
 
-type record struct {
+type Record struct {
 	Topic     string `json:"topic,omitempty"`
 	Payload   string `json:"payload,omitempty"`
 	Timestamp int64  `json:"timestamp,omitempty"`
 }
 
-func mapMessage(mountpoint string, t *nest.Record) record {
-	out := record{
+func mapMessage(mountpoint string, t *nest.Record) Record {
+	out := Record{
 		Timestamp: t.Timestamp,
 		Topic:     strings.TrimPrefix(string(t.Topic), mountpoint+"/"),
 		Payload:   string(t.Payload),
 	}
 	return out
 }
-func mapTopic(mountpoint string, t *nest.TopicMetadata) topic {
+func mapTopic(mountpoint string, t *nest.TopicMetadata) Topic {
 	name := strings.TrimPrefix(string(t.Name), mountpoint+"/")
-	out := topic{
+	out := Topic{
 		ID:           base64.StdEncoding.EncodeToString([]byte(name)),
 		Name:         name,
 		MessageCount: t.MessageCount,
+		SizeInBytes:  t.SizeInBytes,
+	}
+	if t.LastRecord != nil {
+		out.LastRecord = mapMessage(mountpoint, t.LastRecord)
 	}
 	return out
 }
@@ -71,7 +77,7 @@ func (d *topics) List() func(w http.ResponseWriter, r *http.Request, ps httprout
 			return
 		}
 
-		out := make([]topic, len(response.TopicMetadatas))
+		out := make([]Topic, len(response.TopicMetadatas))
 		for idx := range out {
 			out[idx] = mapTopic(authContext.Tenant, response.TopicMetadatas[idx])
 		}

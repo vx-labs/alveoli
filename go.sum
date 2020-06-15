@@ -369,6 +369,8 @@ github.com/vx-labs/nest v0.0.0-20200422072728-9db6d1a66735 h1:EtM3w3Ev8juBMgXM7h
 github.com/vx-labs/nest v0.0.0-20200422072728-9db6d1a66735/go.mod h1:SOAFMYTVPOkJONUxMSO2pv5oLR+Y6BT/Y1uSMq6xqVc=
 github.com/vx-labs/nest v1.0.0 h1:W7mhfAEIGBHP1ZP/Gtl6PXVxb/P8xXtq2MCkXDYWREg=
 github.com/vx-labs/nest v1.0.0/go.mod h1:8tB+ZxgzdHrOCXZuaNet/LaP9BzejPliBtWx6dudMuQ=
+github.com/vx-labs/nest v1.1.0 h1:hATs35T7BlIIsjdy7KAu6ydZWqG0rZ0fAPN/Sb+vTlI=
+github.com/vx-labs/nest v1.1.0/go.mod h1:8tB+ZxgzdHrOCXZuaNet/LaP9BzejPliBtWx6dudMuQ=
 github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7 h1:1+X2CXBL0nH1j1zuPqNAUlurEEQbjqfBtNZ/Jswb1mQ=
 github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7/go.mod h1:H1imTcsJZLDRaPIT/QMPloYh+iLhvXYwAalQyyASYtU=
 github.com/vx-labs/wasp v1.0.8/go.mod h1:2Aq4t1E2LHlHpswQu1Avhm8jO7wEaNxSCweSUex9DjY=
