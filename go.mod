@@ -11,8 +11,8 @@ require (
 	github.com/rs/cors v1.7.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
-	github.com/vx-labs/nest v0.0.0-20200422072728-9db6d1a66735
+	github.com/vx-labs/nest v1.0.0
 	github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7
-	github.com/vx-labs/wasp v1.0.9
+	github.com/vx-labs/wasp v1.2.10
 	google.golang.org/grpc v1.29.1
 )
