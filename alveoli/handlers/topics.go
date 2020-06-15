@@ -32,7 +32,7 @@ func registerTopics(router *httprouter.Router, nestClient nest.MessagesClient) {
 type topic struct {
 	ID           string `json:"id"`
 	Name         string `json:"name,omitempty"`
-	MessageCount uint64 `json:"message_count,omitempty"`
+	MessageCount uint64 `json:"messageCount,omitempty"`
 }
 
 type record struct {
