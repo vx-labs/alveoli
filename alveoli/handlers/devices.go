@@ -41,12 +41,12 @@ type device struct {
 }
 
 type updateDeviceRequest struct {
-	Active *bool `json:"active"`
+	Active *bool `json:"active,omitempty"`
 }
 type createDeviceRequest struct {
-	Name     string `json:"name"`
-	Password string
-	Active   bool
+	Name     string `json:"name,omitempty"`
+	Password string `json:"password,omitempty"`
+	Active   bool   `json:"active,omitempty"`
 }
 
 func (d *devices) Update() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
