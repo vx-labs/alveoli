@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	nest "github.com/vx-labs/nest/nest/api"
 
@@ -21,6 +22,7 @@ type topics struct {
 
 type GetTopicsRequest struct {
 	Pattern string `json:"pattern,omitempty"`
+	Since   string `json:"since,omitempty"`
 }
 
 func registerTopics(router *httprouter.Router, nestClient nest.MessagesClient) {
@@ -86,12 +88,32 @@ func (d *topics) List() func(w http.ResponseWriter, r *http.Request, ps httprout
 		json.NewEncoder(w).Encode(out)
 	}
 }
+func parseSince(s string) (int64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	since, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, err
+	}
+	return int64(time.Now().Add(-since).UnixNano()), nil
+}
+
 func (d *topics) Get() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		authContext := auth.Informations(r.Context())
 
 		body := GetTopicsRequest{}
-		err := json.NewDecoder(r.Body).Decode(&body)
+
+		fromTimestamp, err := parseSince(body.Since)
+		if err != nil {
+			log.Print(err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"status_code": 400, "message": "malformed Since request parameter"`))
+			return
+		}
+
+		err = json.NewDecoder(r.Body).Decode(&body)
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(http.StatusBadRequest)
@@ -102,7 +124,8 @@ func (d *topics) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 			body.Pattern = "#"
 		}
 		stream, err := d.nest.GetTopics(r.Context(), &nest.GetTopicsRequest{
-			Pattern: []byte(fmt.Sprintf("%s/%s", authContext.Tenant, body.Pattern)),
+			Pattern:       []byte(fmt.Sprintf("%s/%s", authContext.Tenant, body.Pattern)),
+			FromTimestamp: fromTimestamp,
 		})
 		if err != nil {
 			log.Print(err)
