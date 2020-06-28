@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware"
@@ -138,11 +137,9 @@ func userEmail(domain, header string) (string, error) {
 
 func (l *auth0Wrapper) getTenant(r *http.Request) (string, error) {
 	authzHeader := r.Header.Get("Authorization")
-	log.Printf(authzHeader)
 	tenant, err := userEmail(l.domain, authzHeader)
 	if err != nil {
-		log.Print(err)
-		return "", nil
+		return "", errors.New("failed to resolve user tenant")
 	}
 	// Temp hack to avoid test devices migration
 	if tenant == "julien@bonachera.fr" {
