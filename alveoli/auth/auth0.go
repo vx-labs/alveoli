@@ -136,13 +136,16 @@ func userEmail(domain, header string) (string, error) {
 }
 
 func (l *auth0Wrapper) getTenant(r *http.Request) (string, error) {
-	authzHeader := r.Header.Get("Authorization")
+	user := r.Context().Value("user")
+	claim := user.(*jwt.Token).Claims.(jwt.MapClaims)
+	tenant := claim["sub"].(string)
+	/*authzHeader := r.Header.Get("Authorization")
 	tenant, err := userEmail(l.domain, authzHeader)
 	if err != nil {
 		return "", errors.New("failed to resolve user tenant")
-	}
+	}*/
 	// Temp hack to avoid test devices migration
-	if tenant == "julien@bonachera.fr" {
+	if tenant == "google-oauth2|110356756329344568739" {
 		tenant = "vx:psk"
 	}
 	return tenant, nil
