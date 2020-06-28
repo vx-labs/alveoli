@@ -20,6 +20,7 @@ type devices struct {
 
 func registerDevices(router *httprouter.Router, vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) {
 	devices := &devices{vespiary: vespiaryClient, wasp: waspClient}
+	router.POST("/devices/", devices.Create())
 	router.GET("/devices/", devices.List())
 	router.GET("/devices/:device_id", devices.Get())
 	router.PATCH("/devices/:device_id", devices.Update())
@@ -41,6 +42,11 @@ type device struct {
 
 type updateDeviceRequest struct {
 	Active *bool `json:"active"`
+}
+type createDeviceRequest struct {
+	Name     string `json:"name"`
+	Password string
+	Active   bool
 }
 
 func (d *devices) Update() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -192,6 +198,42 @@ func (d *devices) Delete() func(w http.ResponseWriter, r *http.Request, ps httpr
 		authContext := auth.Informations(r.Context())
 
 		_, err := d.vespiary.DeleteDevice(r.Context(), &vespiary.DeleteDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
+		if err != nil {
+			log.Print(err)
+			w.WriteHeader(500)
+			return
+		}
+	}
+}
+func (d *devices) Create() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		authContext := auth.Informations(r.Context())
+		manifest := createDeviceRequest{}
+		err := json.NewDecoder(r.Body).Decode(&manifest)
+		if err != nil {
+			log.Print(err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"status_code": 400, "message": "malformed JSON"`))
+			return
+		}
+
+		if manifest.Name == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"status_code": 400, "message": "invalid device name provided"`))
+			return
+		}
+		if manifest.Password == "" && manifest.Active {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"status_code": 400, "message": "device password must be provided if active is set"`))
+			return
+		}
+
+		_, err = d.vespiary.CreateDevice(r.Context(), &vespiary.CreateDeviceRequest{
+			Owner:    authContext.Tenant,
+			Name:     manifest.Name,
+			Active:   manifest.Active,
+			Password: manifest.Password,
+		})
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(500)
