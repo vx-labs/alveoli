@@ -64,7 +64,8 @@ func main() {
 			authClient := vespiary.NewVespiaryClient(authConn)
 			waspClient := wasp.NewMQTTClient(brokerConn)
 			nestClient := nest.NewMessagesClient(nestConn)
-			handlers.Register(router, authClient, nestClient, waspClient)
+			eventsClient := nest.NewEventsClient(nestConn)
+			handlers.Register(router, authClient, nestClient, eventsClient, waspClient)
 
 			corsHandler := cors.New(cors.Options{
 				AllowedMethods: []string{

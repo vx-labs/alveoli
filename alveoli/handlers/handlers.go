@@ -8,7 +8,8 @@ import (
 )
 
 // Register install resource handlers on the provided router
-func Register(router *httprouter.Router, vespiaryClient vespiary.VespiaryClient, nestClient nest.MessagesClient, waspClient wasp.MQTTClient) {
+func Register(router *httprouter.Router, vespiaryClient vespiary.VespiaryClient, nestClient nest.MessagesClient, eventsClient nest.EventsClient, waspClient wasp.MQTTClient) {
 	registerDevices(router, vespiaryClient, waspClient)
 	registerTopics(router, nestClient)
+	registerEvents(router, eventsClient)
 }
