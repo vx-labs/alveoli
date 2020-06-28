@@ -41,6 +41,7 @@ type Record struct {
 	Topic     string `json:"topic,omitempty"`
 	Payload   string `json:"payload,omitempty"`
 	Timestamp int64  `json:"timestamp,omitempty"`
+	Publisher string `json:"publisher,omitempty"`
 }
 
 func mapMessage(mountpoint string, t *nest.Record) Record {
@@ -48,6 +49,7 @@ func mapMessage(mountpoint string, t *nest.Record) Record {
 		Timestamp: t.Timestamp,
 		Topic:     strings.TrimPrefix(string(t.Topic), mountpoint+"/"),
 		Payload:   string(t.Payload),
+		Publisher: t.Sender,
 	}
 	return out
 }

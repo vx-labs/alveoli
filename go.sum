@@ -356,6 +356,8 @@ github.com/vx-labs/mqtt-protocol v4.3.5+incompatible h1:Oy6G1b8dVjtnWdiYtAhe7oFy
 github.com/vx-labs/mqtt-protocol v4.3.5+incompatible/go.mod h1:pTTydlvsQlJkWKiGB8xwGJ5QgBOxU6yUiGm4u6C0Ydg=
 github.com/vx-labs/nest v1.2.0 h1:6uVN07h59+FvAR87RF0BMLfHi8AnQSzNy8jf/svHjso=
 github.com/vx-labs/nest v1.2.0/go.mod h1:rPKh9BsPuVYSw2bRDqSkY9I1wN4U0KdT8wpDGzT+UAc=
+github.com/vx-labs/nest v1.2.1 h1:Bm2y4Iy7qcn/xszP/Hpuhw6lqWxVo90oBbATMiJvmaU=
+github.com/vx-labs/nest v1.2.1/go.mod h1:rPKh9BsPuVYSw2bRDqSkY9I1wN4U0KdT8wpDGzT+UAc=
 github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7 h1:1+X2CXBL0nH1j1zuPqNAUlurEEQbjqfBtNZ/Jswb1mQ=
 github.com/vx-labs/vespiary v0.0.0-20200526123633-eb90f7c5c1d7/go.mod h1:H1imTcsJZLDRaPIT/QMPloYh+iLhvXYwAalQyyASYtU=
 github.com/vx-labs/wasp v1.0.9 h1:Cxz/jkaVzZCW+n5Mbf2JVGVwmgYQuIYILRAy9TxLK9o=
