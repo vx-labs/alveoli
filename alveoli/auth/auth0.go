@@ -162,7 +162,7 @@ func (l *auth0Wrapper) Handler(h http.Handler) http.Handler {
 		tenant, err := l.getTenant(r)
 		if err != nil || tenant == "" {
 			w.WriteHeader(403)
-			w.Write([]byte(`{"message": "permission denied", "status_code": 403}`))
+			w.Write([]byte(`{"message": "permission denied", "status_code": 403, "reason": "` + err.Error() + `"}`))
 			return
 		}
 		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), UserMetadata{Tenant: tenant})))
