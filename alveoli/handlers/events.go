@@ -17,7 +17,8 @@ type events struct {
 }
 
 type GetEventsRequest struct {
-	Since string `json:"since,omitempty"`
+	Since         string `json:"since,omitempty"`
+	FromTimestamp int64  `json:"from_timestamp,omitempty"`
 }
 
 func registerEvents(router *httprouter.Router, nestClient nest.EventsClient) {
@@ -58,6 +59,9 @@ func (d *events) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(`{"status_code": 400, "message": "malformed Since request parameter"`))
 			return
+		}
+		if fromTimestamp > body.FromTimestamp {
+			fromTimestamp = body.FromTimestamp
 		}
 
 		err = json.NewDecoder(r.Body).Decode(&body)
