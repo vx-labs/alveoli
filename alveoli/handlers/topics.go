@@ -27,8 +27,8 @@ type GetTopicsRequest struct {
 
 func registerTopics(router *httprouter.Router, nestClient nest.MessagesClient) {
 	topics := &topics{nest: nestClient}
-	router.GET("/topics/", topics.List())
-	router.POST("/topics/", topics.Get())
+	router.GET("/topics/", auth.RequireAccountCreated(topics.List()))
+	router.POST("/topics/", auth.RequireAccountCreated(topics.Get()))
 }
 
 type Topic struct {
@@ -72,7 +72,7 @@ func (d *topics) List() func(w http.ResponseWriter, r *http.Request, ps httprout
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		authContext := auth.Informations(r.Context())
 		response, err := d.nest.ListTopics(r.Context(), &nest.ListTopicsRequest{
-			Pattern: []byte(fmt.Sprintf("%s/#", authContext.Tenant)),
+			Pattern: []byte(fmt.Sprintf("%s/#", authContext.AccountID)),
 		})
 		if err != nil {
 			log.Print(err)
@@ -83,7 +83,7 @@ func (d *topics) List() func(w http.ResponseWriter, r *http.Request, ps httprout
 
 		out := make([]Topic, len(response.TopicMetadatas))
 		for idx := range out {
-			out[idx] = mapTopic(authContext.Tenant, response.TopicMetadatas[idx])
+			out[idx] = mapTopic(authContext.AccountID, response.TopicMetadatas[idx])
 		}
 		json.NewEncoder(w).Encode(out)
 	}
@@ -124,7 +124,7 @@ func (d *topics) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 			body.Pattern = "#"
 		}
 		stream, err := d.nest.GetTopics(r.Context(), &nest.GetTopicsRequest{
-			Pattern:       []byte(fmt.Sprintf("%s/%s", authContext.Tenant, body.Pattern)),
+			Pattern:       []byte(fmt.Sprintf("%s/%s", authContext.AccountID, body.Pattern)),
 			FromTimestamp: fromTimestamp,
 		})
 		if err != nil {
@@ -150,7 +150,7 @@ func (d *topics) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 				if (count) > 0 {
 					w.Write([]byte(`,`))
 				}
-				encoder.Encode(mapMessage(authContext.Tenant, msg.Records[idx]))
+				encoder.Encode(mapMessage(authContext.AccountID, msg.Records[idx]))
 				count++
 			}
 		}

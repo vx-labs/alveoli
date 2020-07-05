@@ -23,7 +23,7 @@ type GetEventsRequest struct {
 
 func registerEvents(router *httprouter.Router, nestClient nest.EventsClient) {
 	topics := &events{nest: nestClient}
-	router.POST("/events/", topics.Get())
+	router.POST("/events/", auth.RequireAccountCreated(topics.Get()))
 }
 
 type Event struct {
@@ -73,7 +73,7 @@ func (d *events) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 		}
 		stream, err := d.nest.GetEvents(r.Context(), &nest.GetEventRequest{
 			FromTimestamp: fromTimestamp,
-			Tenant:        authContext.Tenant,
+			Tenant:        authContext.AccountID,
 		})
 		if err != nil {
 			log.Print(err)
@@ -98,7 +98,7 @@ func (d *events) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 				if (count) > 0 {
 					w.Write([]byte(`,`))
 				}
-				encoder.Encode(mapEvent(authContext.Tenant, msg.Events[idx]))
+				encoder.Encode(mapEvent(authContext.AccountID, msg.Events[idx]))
 				count++
 			}
 		}

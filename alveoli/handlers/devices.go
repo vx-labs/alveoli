@@ -20,11 +20,11 @@ type devices struct {
 
 func registerDevices(router *httprouter.Router, vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) {
 	devices := &devices{vespiary: vespiaryClient, wasp: waspClient}
-	router.POST("/devices/", devices.Create())
-	router.GET("/devices/", devices.List())
-	router.GET("/devices/:device_id", devices.Get())
-	router.PATCH("/devices/:device_id", devices.Update())
-	router.DELETE("/devices/:device_id", devices.Delete())
+	router.POST("/devices/", auth.RequireAccountCreated(devices.Create()))
+	router.GET("/devices/", auth.RequireAccountCreated(devices.List()))
+	router.GET("/devices/:device_id", auth.RequireAccountCreated(devices.Get()))
+	router.PATCH("/devices/:device_id", auth.RequireAccountCreated(devices.Update()))
+	router.DELETE("/devices/:device_id", auth.RequireAccountCreated(devices.Delete()))
 }
 
 type device struct {
@@ -62,9 +62,9 @@ func (d *devices) Update() func(w http.ResponseWriter, r *http.Request, ps httpr
 		}
 		if manifest.Active != nil {
 			if *manifest.Active == false {
-				_, err = d.vespiary.DisableDevice(r.Context(), &vespiary.DisableDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
+				_, err = d.vespiary.DisableDevice(r.Context(), &vespiary.DisableDeviceRequest{Owner: authContext.AccountID, ID: ps.ByName("device_id")})
 			} else {
-				_, err = d.vespiary.EnableDevice(r.Context(), &vespiary.EnableDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
+				_, err = d.vespiary.EnableDevice(r.Context(), &vespiary.EnableDeviceRequest{Owner: authContext.AccountID, ID: ps.ByName("device_id")})
 			}
 			if err != nil {
 				log.Print(err)
@@ -135,7 +135,7 @@ func mapDevice(vespiaryDevice *vespiary.Device, subscriptions []*wasp.CreateSubs
 func (d *devices) List() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		authContext := auth.Informations(r.Context())
-		authDevices, err := d.vespiary.ListDevices(r.Context(), &vespiary.ListDevicesRequest{Owner: authContext.Tenant})
+		authDevices, err := d.vespiary.ListDevices(r.Context(), &vespiary.ListDevicesRequest{Owner: authContext.AccountID})
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(http.StatusBadGateway)
@@ -183,7 +183,7 @@ func (d *devices) Get() func(w http.ResponseWriter, r *http.Request, ps httprout
 			return
 		}
 
-		device, err := d.vespiary.GetDevice(r.Context(), &vespiary.GetDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
+		device, err := d.vespiary.GetDevice(r.Context(), &vespiary.GetDeviceRequest{Owner: authContext.AccountID, ID: ps.ByName("device_id")})
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(500)
@@ -197,7 +197,7 @@ func (d *devices) Delete() func(w http.ResponseWriter, r *http.Request, ps httpr
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		authContext := auth.Informations(r.Context())
 
-		_, err := d.vespiary.DeleteDevice(r.Context(), &vespiary.DeleteDeviceRequest{Owner: authContext.Tenant, ID: ps.ByName("device_id")})
+		_, err := d.vespiary.DeleteDevice(r.Context(), &vespiary.DeleteDeviceRequest{Owner: authContext.AccountID, ID: ps.ByName("device_id")})
 		if err != nil {
 			log.Print(err)
 			w.WriteHeader(500)
@@ -229,7 +229,7 @@ func (d *devices) Create() func(w http.ResponseWriter, r *http.Request, ps httpr
 		}
 
 		_, err = d.vespiary.CreateDevice(r.Context(), &vespiary.CreateDeviceRequest{
-			Owner:    authContext.Tenant,
+			Owner:    authContext.AccountID,
 			Name:     manifest.Name,
 			Active:   manifest.Active,
 			Password: manifest.Password,

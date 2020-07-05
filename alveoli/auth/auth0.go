@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	jwtmiddleware "github.com/auth0/go-jwt-middleware"
+	vespiary "github.com/vx-labs/vespiary/vespiary/api"
+
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -81,7 +83,7 @@ func getPemCert(domain string, token *jwt.Token) (string, error) {
 	return cert, nil
 }
 
-func auth0Middleware(domain, apiID string) Provider {
+func auth0Middleware(domain, apiID string) *jwtmiddleware.JWTMiddleware {
 	return jwtmiddleware.New(jwtmiddleware.Options{
 		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
 			// Verify 'aud' claim
@@ -110,9 +112,9 @@ func auth0Middleware(domain, apiID string) Provider {
 
 }
 
-func userEmail(domain, header string) (string, error) {
+func (l *auth0Wrapper) ResolveUserEmail(header string) (string, error) {
 	email := ""
-	url := fmt.Sprintf("https://%s/userinfo", domain)
+	url := fmt.Sprintf("https://%s/userinfo", l.domain)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return email, err
@@ -139,21 +141,13 @@ func (l *auth0Wrapper) getTenant(r *http.Request) (string, error) {
 	user := r.Context().Value("user")
 	claim := user.(*jwt.Token).Claims.(jwt.MapClaims)
 	tenant := claim["sub"].(string)
-	/*authzHeader := r.Header.Get("Authorization")
-	tenant, err := userEmail(l.domain, authzHeader)
-	if err != nil {
-		return "", errors.New("failed to resolve user tenant")
-	}*/
-	// Temp hack to avoid test devices migration
-	if tenant == "google-oauth2|110356756329344568739" {
-		tenant = "vx:psk"
-	}
 	return tenant, nil
 }
 
 type auth0Wrapper struct {
-	domain string
-	apiID  string
+	domain         string
+	apiID          string
+	vespiaryClient vespiary.VespiaryClient
 }
 
 func (l *auth0Wrapper) Handler(h http.Handler) http.Handler {
@@ -165,13 +159,22 @@ func (l *auth0Wrapper) Handler(h http.Handler) http.Handler {
 			w.Write([]byte(`{"message": "permission denied", "status_code": 403, "reason": "` + err.Error() + `"}`))
 			return
 		}
-		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), UserMetadata{Tenant: tenant})))
+		md := UserMetadata{Principal: tenant}
+		out, err := l.vespiaryClient.GetAccountByPrincipal(r.Context(), &vespiary.GetAccountByPrincipalRequest{
+			Principal: tenant,
+		})
+		if err == nil {
+			md.AccountID = out.Account.ID
+			md.DeviceUsernames = out.Account.DeviceUsernames
+		}
+		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), md)))
 	}))
 }
 
-func Auth0(domain, apiId string) Provider {
+func Auth0(domain, apiId string, vespiaryClient vespiary.VespiaryClient) Provider {
 	return &auth0Wrapper{
-		domain: domain,
-		apiID:  apiId,
+		domain:         domain,
+		apiID:          apiId,
+		vespiaryClient: vespiaryClient,
 	}
 }

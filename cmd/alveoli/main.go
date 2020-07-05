@@ -31,16 +31,6 @@ func main() {
 		Run: func(cmd *cobra.Command, _ []string) {
 			router := httprouter.New()
 
-			var authProvider auth.Provider
-			switch config.GetString("authentication-provider") {
-			case "static":
-				authProvider = auth.Static(config.GetString("authentication-provider-static-tenant"))
-			case "auth0":
-				authProvider = auth.Auth0(config.GetString("auth0-client-domain"), config.GetString("auth0-api-id"))
-			default:
-				panic("unknown authentication provider specified")
-			}
-
 			rpcDialer := rpc.GRPCDialer(rpc.ClientConfig{
 				InsecureSkipVerify:          config.GetBool("insecure"),
 				TLSCertificatePath:          config.GetString("rpc-tls-certificate-file"),
@@ -61,11 +51,22 @@ func main() {
 				panic(err)
 			}
 
-			authClient := vespiary.NewVespiaryClient(authConn)
+			vespiaryClient := vespiary.NewVespiaryClient(authConn)
 			waspClient := wasp.NewMQTTClient(brokerConn)
 			nestClient := nest.NewMessagesClient(nestConn)
 			eventsClient := nest.NewEventsClient(nestConn)
-			handlers.Register(router, authClient, nestClient, eventsClient, waspClient)
+
+			var authProvider auth.Provider
+			switch config.GetString("authentication-provider") {
+			case "static":
+				authProvider = auth.Static(config.GetString("authentication-provider-static-tenant"))
+			case "auth0":
+				authProvider = auth.Auth0(config.GetString("auth0-client-domain"), config.GetString("auth0-api-id"), vespiaryClient)
+			default:
+				panic("unknown authentication provider specified")
+			}
+
+			handlers.Register(router, authProvider, vespiaryClient, nestClient, eventsClient, waspClient)
 
 			corsHandler := cors.New(cors.Options{
 				AllowedMethods: []string{
