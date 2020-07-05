@@ -16,6 +16,7 @@ func registerAccounts(router *httprouter.Router, vespiaryClient vespiary.Vespiar
 		authProvider: authProvider,
 	}
 	router.GET("/account/info", auth.RequireAccountCreated(accountHandler.Informations()))
+	router.POST("/account/", accountHandler.Create())
 }
 
 type AccountInformations struct {
