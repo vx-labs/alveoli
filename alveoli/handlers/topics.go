@@ -32,11 +32,12 @@ func registerTopics(router *httprouter.Router, nestClient nest.MessagesClient) {
 }
 
 type Topic struct {
-	ID           string `json:"id,omitempty"`
-	Name         string `json:"name,omitempty"`
-	MessageCount uint64 `json:"messageCount,omitempty"`
-	SizeInBytes  uint64 `json:"sizeInBytes,omitempty"`
-	LastRecord   Record `json:"lastRecord,omitempty"`
+	ID                 string `json:"id,omitempty"`
+	Name               string `json:"name,omitempty"`
+	MessageCount       uint64 `json:"messageCount,omitempty"`
+	SizeInBytes        uint64 `json:"sizeInBytes,omitempty"`
+	LastRecord         Record `json:"lastRecord,omitempty"`
+	GuessedContentType string `json:"guessedContentType,omitempty"`
 }
 
 type Record struct {
@@ -58,10 +59,11 @@ func mapMessage(mountpoint string, t *nest.Record) Record {
 func mapTopic(mountpoint string, t *nest.TopicMetadata) Topic {
 	name := strings.TrimPrefix(string(t.Name), mountpoint+"/")
 	out := Topic{
-		ID:           base64.StdEncoding.EncodeToString([]byte(name)),
-		Name:         name,
-		MessageCount: t.MessageCount,
-		SizeInBytes:  t.SizeInBytes,
+		ID:                 base64.StdEncoding.EncodeToString([]byte(name)),
+		Name:               name,
+		MessageCount:       t.MessageCount,
+		SizeInBytes:        t.SizeInBytes,
+		GuessedContentType: t.GuessedContentType,
 	}
 	if t.LastRecord != nil {
 		out.LastRecord = mapMessage(mountpoint, t.LastRecord)
