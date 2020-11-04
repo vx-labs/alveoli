@@ -11,6 +11,10 @@ job "alveoli" {
   }
 
   group "alveoli" {
+    constraint {
+      operator  = "distinct_hosts"
+      value     = "true"
+    }
     vault {
       policies      = ["nomad-tls-storer"]
       change_mode   = "signal"
@@ -28,7 +32,7 @@ job "alveoli" {
     }
 
     ephemeral_disk {
-      size = 2000
+      size = 200
     }
 
     task "server" {
