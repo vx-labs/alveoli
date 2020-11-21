@@ -15,7 +15,7 @@ import (
 	"github.com/vx-labs/alveoli/alveoli/rpc"
 	nest "github.com/vx-labs/nest/nest/api"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
-	wasp "github.com/vx-labs/wasp/wasp/api"
+	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 )
 
 func main() {

@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
-	wasp "github.com/vx-labs/wasp/wasp/api"
+	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/vx-labs/alveoli/alveoli/auth"
@@ -85,7 +85,7 @@ func fillWithMetadata(tenant string, sessions []*wasp.SessionMetadatas, client *
 	}
 }
 
-func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscriptionRequest, sessions []*wasp.SessionMetadatas, client *device) {
+func fillWithSubscriptions(tenant string, subscriptions []*wasp.Subscription, sessions []*wasp.SessionMetadatas, client *device) {
 
 	for idx := range subscriptions {
 		sessionID := ""
@@ -105,7 +105,7 @@ func fillWithSubscriptions(tenant string, subscriptions []*wasp.CreateSubscripti
 	}
 }
 
-func mapDevice(vespiaryDevice *vespiary.Device, subscriptions []*wasp.CreateSubscriptionRequest, sessions []*wasp.SessionMetadatas) device {
+func mapDevice(vespiaryDevice *vespiary.Device, subscriptions []*wasp.Subscription, sessions []*wasp.SessionMetadatas) device {
 	out := device{
 		ID:        vespiaryDevice.ID,
 		Name:      vespiaryDevice.Name,
