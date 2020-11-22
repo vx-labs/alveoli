@@ -165,6 +165,7 @@ func (l *auth0Wrapper) Handler(h http.Handler) http.Handler {
 		})
 		if err == nil {
 			md.AccountID = out.Account.ID
+			md.Name = out.Account.Name
 			md.DeviceUsernames = out.Account.DeviceUsernames
 		}
 		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), md)))
