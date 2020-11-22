@@ -180,6 +180,8 @@ github.com/gorilla/websocket v0.0.0-20170926233335-4201258b820c/go.mod h1:E7qHFY
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.4.1/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/graphql-go/graphql v0.7.9 h1:5Va/Rt4l5g3YjwDnid3vFfn43faaQBq7rMcIZ0VnV34=
+github.com/graphql-go/graphql v0.7.9/go.mod h1:k6yrAYQaSP59DC5UVxbgxESlmVyojThKdORUqGDGmrI=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.0/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
 github.com/grpc-ecosystem/go-grpc-middleware v1.0.1-0.20190118093823-f849b5445de4/go.mod h1:FiyG127CGDf3tlThmgyCl78X/SZQqEOJBCDaAfeWzPs=
 github.com/grpc-ecosystem/go-grpc-middleware v1.2.0 h1:0IKlLyQ3Hs9nDaiK5cSHAGmcQEIC8l2Ts1u6x5Dfrqg=
@@ -462,6 +464,7 @@ github.com/urfave/cli v1.22.1/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtX
 github.com/urfave/negroni v1.0.0 h1:kIimOitoypq34K7TG7DUaJ9kq/N4Ofuwi1sjz0KipXc=
 github.com/urfave/negroni v1.0.0/go.mod h1:Meg73S6kFm/4PpbYdq35yYWoCZ9mS/YSx+lKnmiohz4=
 github.com/vx-labs/cluster v1.5.0/go.mod h1:hLbLE2+vCXixbFKkARaR2J/umZhAJN/RDR4LVru0lQ0=
+github.com/vx-labs/cluster v1.6.3/go.mod h1:hLbLE2+vCXixbFKkARaR2J/umZhAJN/RDR4LVru0lQ0=
 github.com/vx-labs/commitlog v1.2.4/go.mod h1:oD9S7H5eUBFcEg7ZyAxJomwac+B0vulxvEbqQGDhHF0=
 github.com/vx-labs/mqtt-protocol v4.3.5+incompatible h1:Oy6G1b8dVjtnWdiYtAhe7oFyv56c9WYnf8ErXddN7fQ=
 github.com/vx-labs/mqtt-protocol v4.3.5+incompatible/go.mod h1:pTTydlvsQlJkWKiGB8xwGJ5QgBOxU6yUiGm4u6C0Ydg=
@@ -480,6 +483,16 @@ github.com/vx-labs/vespiary v1.1.0 h1:FKMR4InN6r1efh4me0mhcNttabJJMxK5cfSacAzSrq
 github.com/vx-labs/vespiary v1.1.0/go.mod h1:A4VUhsiUINV5DXK1xShEseYzYm4ufP1gE06Pdc/lmsw=
 github.com/vx-labs/vespiary v1.2.0 h1:fcnc46aOE65SAmS1ML1gMsM2FIz7Zj4PtOKgv8A+pTQ=
 github.com/vx-labs/vespiary v1.2.0/go.mod h1:Q/XEzbZ4DWW5rZqgLX+ADLsqLx5gnaMTCWBti0VJD2c=
+github.com/vx-labs/vespiary v1.2.1 h1:puYykapKphJwQd3SL+YFikEPAYHd2MLE6HgdIKqflmM=
+github.com/vx-labs/vespiary v1.2.1/go.mod h1:Q/XEzbZ4DWW5rZqgLX+ADLsqLx5gnaMTCWBti0VJD2c=
+github.com/vx-labs/vespiary v1.2.2 h1:O7XZLjtOs9Ou85RIVpVe52s46sC+SZBpTQ2el5GRGAs=
+github.com/vx-labs/vespiary v1.2.2/go.mod h1:Q/XEzbZ4DWW5rZqgLX+ADLsqLx5gnaMTCWBti0VJD2c=
+github.com/vx-labs/vespiary v1.2.3 h1:U1tRgAWADa0/TQfwI3VHngN4hSUG0RuqFAP/vevs0gw=
+github.com/vx-labs/vespiary v1.2.3/go.mod h1:Q/XEzbZ4DWW5rZqgLX+ADLsqLx5gnaMTCWBti0VJD2c=
+github.com/vx-labs/vespiary v1.2.4 h1:wFTpIqNAN5rnJy7JX7s0bEYP8/sVwSScY31T2FhqAfQ=
+github.com/vx-labs/vespiary v1.2.4/go.mod h1:L4rlrpAQrrJrBmXpci4G9SHGMvL34fdp7Pfsq9XWYv0=
+github.com/vx-labs/vespiary v1.2.5 h1:xFYunwiCatO+698nHUee/I1ofWZKmtYsaIJ+7Xi7kck=
+github.com/vx-labs/vespiary v1.2.5/go.mod h1:L4rlrpAQrrJrBmXpci4G9SHGMvL34fdp7Pfsq9XWYv0=
 github.com/vx-labs/wasp v1.6.1/go.mod h1:TxXJAqAhU1AgnGtu0R8SHuVXM6WCxxL1A1gOU8vkBQo=
 github.com/vx-labs/wasp v1.7.6 h1:nFSnegJWPYpFrXZ2F456j8Thwm46EYIsKyYBP3Tftk8=
 github.com/vx-labs/wasp v1.7.6/go.mod h1:TxXJAqAhU1AgnGtu0R8SHuVXM6WCxxL1A1gOU8vkBQo=

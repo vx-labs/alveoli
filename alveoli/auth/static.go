@@ -3,7 +3,8 @@ package auth
 import "net/http"
 
 type static struct {
-	tenant string
+	accountID string
+	tenant    string
 }
 
 func (l *static) ResolveUserEmail(header string) (string, error) {
@@ -13,12 +14,13 @@ func (l *static) Handler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), UserMetadata{
 			Principal:       l.tenant,
-			AccountID:       "1",
+			Name:            "mocked static account",
+			AccountID:       l.accountID,
 			DeviceUsernames: []string{l.tenant},
 		})))
 	})
 }
 
-func Static(tenant string) Provider {
-	return &static{tenant: tenant}
+func Static(accountID, tenant string) Provider {
+	return &static{tenant: tenant, accountID: accountID}
 }

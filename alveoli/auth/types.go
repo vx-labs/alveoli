@@ -14,6 +14,7 @@ const userInformationsContextKey vxContextKey = "vx:user_informations"
 // UserMetadata contains informations about a user.
 type UserMetadata struct {
 	AccountID       string
+	Name            string
 	DeviceUsernames []string
 	Principal       string
 }

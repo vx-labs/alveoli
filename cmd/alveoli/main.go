@@ -1,15 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/graphql-go/graphql"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/vx-labs/alveoli/alveoli"
 	"github.com/vx-labs/alveoli/alveoli/auth"
 	"github.com/vx-labs/alveoli/alveoli/handlers"
 	"github.com/vx-labs/alveoli/alveoli/rpc"
@@ -17,6 +22,12 @@ import (
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 )
+
+type postData struct {
+	Query     string                 `json:"query"`
+	Operation string                 `json:"operation"`
+	Variables map[string]interface{} `json:"variables"`
+}
 
 func main() {
 	config := viper.New()
@@ -56,10 +67,12 @@ func main() {
 			nestClient := nest.NewMessagesClient(nestConn)
 			eventsClient := nest.NewEventsClient(nestConn)
 
+			graphQLSchema := alveoli.VespiarySchema(vespiaryClient)
+
 			var authProvider auth.Provider
 			switch config.GetString("authentication-provider") {
 			case "static":
-				authProvider = auth.Static(config.GetString("authentication-provider-static-tenant"))
+				authProvider = auth.Static(config.GetString("authentication-provider-static-account-id"), config.GetString("authentication-provider-static-tenant"))
 			case "auth0":
 				authProvider = auth.Auth0(config.GetString("auth0-client-domain"), config.GetString("auth0-api-id"), vespiaryClient)
 			default:
@@ -67,6 +80,33 @@ func main() {
 			}
 
 			handlers.Register(router, authProvider, vespiaryClient, nestClient, eventsClient, waspClient)
+
+			router.POST("/graphql", func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+				var p postData
+				if err := json.NewDecoder(req.Body).Decode(&p); err != nil {
+					w.WriteHeader(400)
+					return
+				}
+				result := graphql.Do(graphql.Params{
+					Context:        req.Context(),
+					Schema:         graphQLSchema,
+					RequestString:  p.Query,
+					VariableValues: p.Variables,
+					OperationName:  p.Operation,
+				})
+				if err := json.NewEncoder(w).Encode(result); err != nil {
+					fmt.Printf("could not write result to response: %s", err)
+				}
+			})
+			router.GET("/graphql", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+				fd, err := os.Open("./static/index.html")
+				defer fd.Close() //Close after function return
+				if err != nil {
+					http.Error(w, "File not found.", 404)
+					return
+				}
+				io.Copy(w, fd)
+			})
 
 			corsHandler := cors.New(cors.Options{
 				AllowedMethods: []string{
@@ -97,6 +137,7 @@ func main() {
 	cmd.Flags().Int("port", 8080, "Run REST API on this port.")
 	cmd.Flags().String("authentication-provider", "auth0", "How shall we authenticate user requests? Supported values are auth0 and static.")
 	cmd.Flags().String("authentication-provider-static-tenant", "vx:psk", "The default tenant to use when using static authentication provider.")
+	cmd.Flags().String("authentication-provider-static-account-id", "1", "The account-id to use when using static authentication provider.")
 	cmd.AddCommand(TLSHelper(config))
 
 	cmd.Execute()
