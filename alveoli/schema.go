@@ -2,13 +2,15 @@ package alveoli
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/graphql-go/graphql"
 	"github.com/vx-labs/alveoli/alveoli/auth"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
+	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 )
 
-func VespiarySchema(vespiaryClient vespiary.VespiaryClient) graphql.Schema {
+func Schema(vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) graphql.Schema {
 	accountType := graphql.NewObject(graphql.ObjectConfig{
 		Name:        "Account",
 		Description: "A user account.",
@@ -29,6 +31,74 @@ func VespiarySchema(vespiaryClient vespiary.VespiaryClient) graphql.Schema {
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					if acccount, ok := p.Source.(auth.UserMetadata); ok {
 						return acccount.Name, nil
+					}
+					return nil, nil
+				},
+			},
+		},
+	})
+	sessionType := graphql.NewObject(graphql.ObjectConfig{
+		Name:        "Session",
+		Description: "A connected session.",
+		Fields: graphql.Fields{
+			"id": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.ID),
+				Description: "The unique id of the session.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if session, ok := p.Source.(*wasp.SessionMetadatas); ok {
+						tokens := strings.SplitN(session.SessionID, "/", 2)
+						if len(tokens) != 2 {
+							return nil, errors.New("failed to find id in session id")
+						}
+						return tokens[1], nil
+					}
+					return nil, nil
+				},
+			},
+			"applicationProfileId": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.ID),
+				Description: "The application profile this session belongs to.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if session, ok := p.Source.(*wasp.SessionMetadatas); ok {
+						tokens := strings.SplitN(session.SessionID, "/", 2)
+						if len(tokens) != 2 {
+							return nil, errors.New("failed to find applicationProfileId in session id")
+						}
+						return tokens[0], nil
+					}
+					return nil, nil
+				},
+			},
+			"applicationId": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.ID),
+				Description: "The application this session belongs to.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if session, ok := p.Source.(*wasp.SessionMetadatas); ok {
+						tokens := strings.SplitN(session.MountPoint, "/", 2)
+						if len(tokens) != 2 {
+							return nil, errors.New("failed to find applicationeId in session id")
+						}
+						return tokens[1], nil
+					}
+					return nil, nil
+				},
+			},
+			"connectedAt": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.Int),
+				Description: "The time this session has logged in.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if session, ok := p.Source.(*wasp.SessionMetadatas); ok {
+						return session.ConnectedAt, nil
+					}
+					return nil, nil
+				},
+			},
+			"clientId": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The session's MQTT client-id.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if session, ok := p.Source.(*wasp.SessionMetadatas); ok {
+						return session.ClientID, nil
 					}
 					return nil, nil
 				},
@@ -79,6 +149,27 @@ func VespiarySchema(vespiaryClient vespiary.VespiaryClient) graphql.Schema {
 					return nil, nil
 				},
 			},
+			"sessions": &graphql.Field{
+				Type:        &graphql.List{OfType: sessionType},
+				Description: "Connected sessions using this application profile.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if applicationProfile, ok := p.Source.(*vespiary.ApplicationProfile); ok {
+						authContext := auth.Informations(p.Context)
+						out, err := waspClient.ListSessionMetadatas(p.Context, &wasp.ListSessionMetadatasRequest{})
+						if err != nil {
+							return nil, err
+						}
+						filtered := make([]*wasp.SessionMetadatas, 0)
+						for _, sessionMetadatas := range out.SessionMetadatasList {
+							if strings.HasPrefix(sessionMetadatas.MountPoint, authContext.AccountID) && strings.HasPrefix(sessionMetadatas.SessionID, applicationProfile.ID) {
+								filtered = append(filtered, sessionMetadatas)
+							}
+						}
+						return filtered, nil
+					}
+					return nil, nil
+				},
+			},
 		},
 	})
 	applicationType := graphql.NewObject(graphql.ObjectConfig{
@@ -125,6 +216,27 @@ func VespiarySchema(vespiaryClient vespiary.VespiaryClient) graphql.Schema {
 					return nil, nil
 				},
 			},
+			"sessions": &graphql.Field{
+				Type:        &graphql.List{OfType: sessionType},
+				Description: "Connected sessions using this application.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if application, ok := p.Source.(*vespiary.Application); ok {
+						authContext := auth.Informations(p.Context)
+						out, err := waspClient.ListSessionMetadatas(p.Context, &wasp.ListSessionMetadatasRequest{})
+						if err != nil {
+							return nil, err
+						}
+						filtered := make([]*wasp.SessionMetadatas, 0)
+						for _, sessionMetadatas := range out.SessionMetadatasList {
+							if strings.HasPrefix(sessionMetadatas.MountPoint, authContext.AccountID) && strings.HasSuffix(sessionMetadatas.MountPoint, application.ID) {
+								filtered = append(filtered, sessionMetadatas)
+							}
+						}
+						return filtered, nil
+					}
+					return nil, nil
+				},
+			},
 		},
 	})
 	queryType := graphql.NewObject(graphql.ObjectConfig{
@@ -158,6 +270,23 @@ func VespiarySchema(vespiaryClient vespiary.VespiaryClient) graphql.Schema {
 						return out.Application, nil
 					}
 					return nil, errors.New("missing name")
+				},
+			},
+			"sessions": &graphql.Field{
+				Type: &graphql.List{OfType: sessionType},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					authContext := auth.Informations(p.Context)
+					out, err := waspClient.ListSessionMetadatas(p.Context, &wasp.ListSessionMetadatasRequest{})
+					if err != nil {
+						return nil, err
+					}
+					filtered := make([]*wasp.SessionMetadatas, 0)
+					for _, sessionMetadatas := range out.SessionMetadatasList {
+						if strings.HasPrefix(sessionMetadatas.MountPoint, authContext.AccountID) {
+							filtered = append(filtered, sessionMetadatas)
+						}
+					}
+					return filtered, nil
 				},
 			},
 			"applications": &graphql.Field{
