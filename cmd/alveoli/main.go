@@ -94,6 +94,7 @@ func main() {
 					VariableValues: p.Variables,
 					OperationName:  p.Operation,
 				})
+				w.Header().Add("Content-Type", "application/json")
 				if err := json.NewEncoder(w).Encode(result); err != nil {
 					fmt.Printf("could not write result to response: %s", err)
 				}
