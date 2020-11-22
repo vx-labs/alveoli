@@ -67,7 +67,7 @@ func main() {
 			nestClient := nest.NewMessagesClient(nestConn)
 			eventsClient := nest.NewEventsClient(nestConn)
 
-			graphQLSchema := alveoli.Schema(vespiaryClient, waspClient)
+			graphQLSchema := alveoli.Schema(vespiaryClient, waspClient, nestClient)
 
 			var authProvider auth.Provider
 			switch config.GetString("authentication-provider") {

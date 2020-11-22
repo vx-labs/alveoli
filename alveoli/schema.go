@@ -2,15 +2,19 @@ package alveoli
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"strings"
+	"time"
 
 	"github.com/graphql-go/graphql"
 	"github.com/vx-labs/alveoli/alveoli/auth"
+	nest "github.com/vx-labs/nest/nest/api"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 )
 
-func Schema(vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) graphql.Schema {
+func Schema(vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient, nestClient nest.MessagesClient) graphql.Schema {
 	accountType := graphql.NewObject(graphql.ObjectConfig{
 		Name:        "Account",
 		Description: "A user account.",
@@ -105,6 +109,171 @@ func Schema(vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) 
 			},
 		},
 	})
+	recordType := graphql.NewObject(graphql.ObjectConfig{
+		Name:        "Record",
+		Description: "A message record.",
+		Fields: graphql.Fields{
+			"topicName": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The topic this message was published to.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if record, ok := p.Source.(*nest.Record); ok {
+						tokens := strings.SplitN(string(record.Topic), "/", 3)
+						if len(tokens) != 3 {
+							return nil, errors.New("failed to extract name from topic")
+						}
+						return tokens[2], nil
+					}
+					return nil, nil
+				},
+			},
+			"applicationId": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.ID),
+				Description: "The id of the application profile.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if record, ok := p.Source.(*nest.Record); ok {
+						tokens := strings.SplitN(string(record.Topic), "/", 3)
+						if len(tokens) != 3 {
+							return nil, errors.New("failed to extract name from topic")
+						}
+						return tokens[1], nil
+					}
+					return nil, nil
+				},
+			},
+			"payload": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The record payload.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if record, ok := p.Source.(*nest.Record); ok {
+						return string(record.Payload), nil
+					}
+					return nil, nil
+				},
+			},
+			"sentBy": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The sender ID.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if record, ok := p.Source.(*nest.Record); ok {
+						return string(record.Sender), nil
+					}
+					return nil, nil
+				},
+			},
+			"sentAt": &graphql.Field{
+				Type:        graphql.DateTime,
+				Description: "The time this message was published.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					record := p.Source.(*nest.Record)
+					return time.Unix(0, record.Timestamp), nil
+				},
+			},
+		},
+	})
+	topicType := graphql.NewObject(graphql.ObjectConfig{
+		Name:        "Topic",
+		Description: "A message topic.",
+		Fields: graphql.Fields{
+			"name": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The name of the topic.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						tokens := strings.SplitN(string(topic.Name), "/", 3)
+						if len(tokens) != 3 {
+							return nil, errors.New("failed to extract name from topic")
+						}
+						return tokens[2], nil
+					}
+					return nil, nil
+				},
+			},
+			"applicationId": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.ID),
+				Description: "The id of the application profile.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						tokens := strings.SplitN(string(topic.Name), "/", 3)
+						if len(tokens) != 3 {
+							return nil, errors.New("failed to extract name from topic")
+						}
+						return tokens[1], nil
+					}
+					return nil, nil
+				},
+			},
+			"guessedContentType": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.ID),
+				Description: "The guessed content-type.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						return topic.GuessedContentType, nil
+					}
+					return nil, nil
+				},
+			},
+			"messageCount": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.Int),
+				Description: "The number of messages in the topic.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						return topic.MessageCount, nil
+					}
+					return nil, nil
+				},
+			},
+			"sizeInBytes": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.Int),
+				Description: "The size of the topic in bytes.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						return topic.SizeInBytes, nil
+					}
+					return nil, nil
+				},
+			},
+			"lastRecord": &graphql.Field{
+				Type:        recordType,
+				Description: "The last record published in this topic.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						return topic.LastRecord, nil
+					}
+					return nil, nil
+				},
+			},
+			"records": &graphql.Field{
+				Type:        &graphql.List{OfType: recordType},
+				Description: "The records published in this topic.",
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					if topic, ok := p.Source.(*nest.TopicMetadata); ok {
+						stream, err := nestClient.GetTopics(p.Context, &nest.GetTopicsRequest{
+							Pattern:       topic.Name,
+							Watch:         false,
+							FromTimestamp: time.Now().Add(-15 * 24 * time.Hour).UnixNano(),
+						})
+						if err != nil {
+							return nil, err
+						}
+						out := []*nest.Record{}
+						for {
+							msg, err := stream.Recv()
+							if err != nil {
+								if err == io.EOF {
+									return out, nil
+								}
+								return nil, err
+							}
+							out = append(out, msg.Records...)
+						}
+					}
+					return nil, nil
+				},
+			},
+		},
+	})
+
 	applicationProfileType := graphql.NewObject(graphql.ObjectConfig{
 		Name:        "ApplicationProfile",
 		Description: "An application profile.",
@@ -216,6 +385,35 @@ func Schema(vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) 
 					return nil, nil
 				},
 			},
+			"topics": &graphql.Field{
+				Description: "The message topics published in this application",
+				Type:        &graphql.List{OfType: topicType},
+				Args: graphql.FieldConfigArgument{
+					"pattern": &graphql.ArgumentConfig{
+						Description:  "A pattern to match topics.",
+						Type:         graphql.String,
+						DefaultValue: nil,
+					},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					authContext := auth.Informations(p.Context)
+					if application, ok := p.Source.(*vespiary.Application); ok {
+						pattern := "#"
+						if v, ok := p.Args["pattern"]; ok && v != nil {
+							pattern = v.(string)
+						}
+						finalPattern := []byte(fmt.Sprintf("%s/%s/%s", authContext.AccountID, application.ID, pattern))
+						out, err := nestClient.ListTopics(p.Context, &nest.ListTopicsRequest{
+							Pattern: finalPattern,
+						})
+						if err != nil {
+							return nil, err
+						}
+						return out.TopicMetadatas, nil
+					}
+					return nil, nil
+				},
+			},
 			"sessions": &graphql.Field{
 				Type:        &graphql.List{OfType: sessionType},
 				Description: "Connected sessions using this application.",
@@ -247,6 +445,31 @@ func Schema(vespiaryClient vespiary.VespiaryClient, waspClient wasp.MQTTClient) 
 				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 					authContext := auth.Informations(p.Context)
 					return authContext, nil
+				},
+			},
+			"topics": &graphql.Field{
+				Type: &graphql.List{OfType: topicType},
+				Args: graphql.FieldConfigArgument{
+					"pattern": &graphql.ArgumentConfig{
+						Description:  "A pattern to match topics.",
+						Type:         graphql.String,
+						DefaultValue: nil,
+					},
+				},
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					authContext := auth.Informations(p.Context)
+					pattern := "#"
+					if v, ok := p.Args["pattern"]; ok && v != nil {
+						pattern = v.(string)
+					}
+					finalPattern := []byte(fmt.Sprintf("%s/+/%s", authContext.AccountID, pattern))
+					out, err := nestClient.ListTopics(p.Context, &nest.ListTopicsRequest{
+						Pattern: finalPattern,
+					})
+					if err != nil {
+						return nil, err
+					}
+					return out.TopicMetadatas, nil
 				},
 			},
 			"application": &graphql.Field{
