@@ -7,7 +7,7 @@ import (
 )
 
 type applicationProfileResolver struct {
-	*Resolver
+	*resolver
 }
 
 func (a *applicationProfileResolver) ID(ctx context.Context, obj *vespiary.ApplicationProfile) (string, error) {

@@ -10,7 +10,7 @@ import (
 )
 
 type recordResolver struct {
-	*Resolver
+	*resolver
 }
 
 func (r *recordResolver) TopicName(ctx context.Context, obj *nest.Record) (string, error) {

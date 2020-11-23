@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/introspection"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
+	"github.com/vx-labs/alveoli/alveoli/graph/model"
 	api1 "github.com/vx-labs/nest/nest/api"
 	"github.com/vx-labs/vespiary/vespiary/api"
 	api2 "github.com/vx-labs/wasp/v4/wasp/api"
@@ -40,6 +41,7 @@ type Config struct {
 type ResolverRoot interface {
 	Application() ApplicationResolver
 	ApplicationProfile() ApplicationProfileResolver
+	Mutation() MutationResolver
 	Query() QueryResolver
 	Record() RecordResolver
 	Session() SessionResolver
@@ -68,6 +70,24 @@ type ComplexityRoot struct {
 		Enabled       func(childComplexity int) int
 		ID            func(childComplexity int) int
 		Name          func(childComplexity int) int
+	}
+
+	CreateApplicationOutput struct {
+		Application func(childComplexity int) int
+		Success     func(childComplexity int) int
+	}
+
+	CreateApplicationProfileOutput struct {
+		ApplicationProfile func(childComplexity int) int
+		Success            func(childComplexity int) int
+	}
+
+	Mutation struct {
+		CreateApplication        func(childComplexity int, input api.CreateApplicationRequest) int
+		CreateApplicationProfile func(childComplexity int, input api.CreateApplicationProfileRequest) int
+		DeleteAccount            func(childComplexity int) int
+		DeleteApplication        func(childComplexity int, id string) int
+		DeleteApplicationProfile func(childComplexity int, id string) int
 	}
 
 	Query struct {
@@ -117,6 +137,13 @@ type ApplicationProfileResolver interface {
 	Name(ctx context.Context, obj *api.ApplicationProfile) (string, error)
 	ApplicationID(ctx context.Context, obj *api.ApplicationProfile) (string, error)
 	Enabled(ctx context.Context, obj *api.ApplicationProfile) (bool, error)
+}
+type MutationResolver interface {
+	DeleteAccount(ctx context.Context) (string, error)
+	CreateApplication(ctx context.Context, input api.CreateApplicationRequest) (*model.CreateApplicationOutput, error)
+	DeleteApplication(ctx context.Context, id string) (string, error)
+	CreateApplicationProfile(ctx context.Context, input api.CreateApplicationProfileRequest) (*model.CreateApplicationProfileOutput, error)
+	DeleteApplicationProfile(ctx context.Context, id string) (string, error)
 }
 type QueryResolver interface {
 	Account(ctx context.Context) (*api.Account, error)
@@ -250,6 +277,89 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ApplicationProfile.Name(childComplexity), true
+
+	case "CreateApplicationOutput.application":
+		if e.complexity.CreateApplicationOutput.Application == nil {
+			break
+		}
+
+		return e.complexity.CreateApplicationOutput.Application(childComplexity), true
+
+	case "CreateApplicationOutput.success":
+		if e.complexity.CreateApplicationOutput.Success == nil {
+			break
+		}
+
+		return e.complexity.CreateApplicationOutput.Success(childComplexity), true
+
+	case "CreateApplicationProfileOutput.applicationProfile":
+		if e.complexity.CreateApplicationProfileOutput.ApplicationProfile == nil {
+			break
+		}
+
+		return e.complexity.CreateApplicationProfileOutput.ApplicationProfile(childComplexity), true
+
+	case "CreateApplicationProfileOutput.success":
+		if e.complexity.CreateApplicationProfileOutput.Success == nil {
+			break
+		}
+
+		return e.complexity.CreateApplicationProfileOutput.Success(childComplexity), true
+
+	case "Mutation.createApplication":
+		if e.complexity.Mutation.CreateApplication == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createApplication_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateApplication(childComplexity, args["input"].(api.CreateApplicationRequest)), true
+
+	case "Mutation.createApplicationProfile":
+		if e.complexity.Mutation.CreateApplicationProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createApplicationProfile_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateApplicationProfile(childComplexity, args["input"].(api.CreateApplicationProfileRequest)), true
+
+	case "Mutation.deleteAccount":
+		if e.complexity.Mutation.DeleteAccount == nil {
+			break
+		}
+
+		return e.complexity.Mutation.DeleteAccount(childComplexity), true
+
+	case "Mutation.deleteApplication":
+		if e.complexity.Mutation.DeleteApplication == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteApplication_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteApplication(childComplexity, args["id"].(string)), true
+
+	case "Mutation.deleteApplicationProfile":
+		if e.complexity.Mutation.DeleteApplicationProfile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteApplicationProfile_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteApplicationProfile(childComplexity, args["id"].(string)), true
 
 	case "Query.account":
 		if e.complexity.Query.Account == nil {
@@ -434,6 +544,20 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
+	case ast.Mutation:
+		return func(ctx context.Context) *graphql.Response {
+			if !first {
+				return nil
+			}
+			first = false
+			data := ec._Mutation(ctx, rc.Operation.SelectionSet)
+			var buf bytes.Buffer
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -460,29 +584,6 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "alveoli/graph/schemas/account.graphql", Input: `type Account @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Account"){
-  id: String!
-  name: String!
-}`, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/application.graphql", Input: `type Application
-  @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Application") {
-  id: ID! @goField(forceResolver: true)
-  name: String! @goField(forceResolver: true)
-  profiles: [ApplicationProfile]! @goField(forceResolver: true)
-  topics(pattern: String): [Topic]! @goField(forceResolver: true)
-  records(pattern: String): [Record] @goField(forceResolver: true)
-}
-`, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/applicationProfile.graphql", Input: `type ApplicationProfile
-  @goModel(
-    model: "github.com/vx-labs/vespiary/vespiary/api.ApplicationProfile"
-  ) {
-  id: ID! @goField(forceResolver: true)
-  name: String! @goField(forceResolver: true)
-  applicationId: ID! @goField(forceResolver: true)
-  enabled: Boolean! @goField(forceResolver: true)
-}
-`, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/directive.graphql", Input: `# GQL Directives
 # This part is fairly necessary and is described in the gql documentation
 # https://gqlgen.com/config/
@@ -495,6 +596,14 @@ directive @goModel(model: String, models: [String!]) on OBJECT
 
 directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
     | FIELD_DEFINITION`, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/mutation.graphql", Input: `type Mutation {
+  deleteAccount: ID!
+  createApplication(input: CreateApplicationInput!): CreateApplicationOutput
+  deleteApplication(id: ID!): ID!
+  createApplicationProfile(input: CreateApplicationProfileInput!): CreateApplicationProfileOutput
+  deleteApplicationProfile(id: ID!): ID!
+}
+`, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/query.graphql", Input: `type Query {
   account: Account!
   applications: [Application]!
@@ -503,7 +612,56 @@ directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITI
   sessions: [Session]!
 }
 `, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/record.graphql", Input: `type Record @goModel(model: "github.com/vx-labs/nest/nest/api.Record") {
+	{Name: "alveoli/graph/schemas/scalars.graphql", Input: `scalar Time
+`, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/types/account.graphql", Input: `type Account @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Account"){
+  id: String!
+  name: String!
+}`, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/types/application.graphql", Input: `type Application
+  @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Application") {
+  id: ID! @goField(forceResolver: true)
+  name: String! @goField(forceResolver: true)
+  profiles: [ApplicationProfile]! @goField(forceResolver: true)
+  topics(pattern: String): [Topic]! @goField(forceResolver: true)
+  records(pattern: String): [Record] @goField(forceResolver: true)
+}
+
+input CreateApplicationInput
+  @goModel(
+    model: "github.com/vx-labs/vespiary/vespiary/api.CreateApplicationRequest"
+  ) {
+  name: String!
+}
+type CreateApplicationOutput {
+  application: Application
+  success: Boolean!
+}
+`, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/types/applicationProfile.graphql", Input: `type ApplicationProfile
+  @goModel(
+    model: "github.com/vx-labs/vespiary/vespiary/api.ApplicationProfile"
+  ) {
+  id: ID! @goField(forceResolver: true)
+  name: String! @goField(forceResolver: true)
+  applicationId: ID! @goField(forceResolver: true)
+  enabled: Boolean! @goField(forceResolver: true)
+}
+
+input CreateApplicationProfileInput
+  @goModel(
+    model: "github.com/vx-labs/vespiary/vespiary/api.CreateApplicationProfileRequest"
+  ) {
+  name: String!
+  applicationId: String!
+  password: String!
+}
+type CreateApplicationProfileOutput {
+  applicationProfile: ApplicationProfile
+  success: Boolean!
+}
+`, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/types/record.graphql", Input: `type Record @goModel(model: "github.com/vx-labs/nest/nest/api.Record") {
   topicName: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
   payload: String! @goField(forceResolver: true)
@@ -511,7 +669,7 @@ directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITI
   sentAt: Time! @goField(forceResolver: true)
 }
 `, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/session.graphql", Input: `type Session
+	{Name: "alveoli/graph/schemas/types/session.graphql", Input: `type Session
   @goModel(model: "github.com/vx-labs/wasp/v4/wasp/api.SessionMetadatas") {
   id: String! @goField(forceResolver: true)
   clientId: String! @goField(forceResolver: true)
@@ -520,7 +678,7 @@ directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITI
   connectedAt: Time! @goField(forceResolver: true)
 }
 `, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/topic.graphql", Input: `type Topic @goModel(model: "github.com/vx-labs/nest/nest/api.TopicMetadata") {
+	{Name: "alveoli/graph/schemas/types/topic.graphql", Input: `type Topic @goModel(model: "github.com/vx-labs/nest/nest/api.TopicMetadata") {
   name: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
   guessedContentType: String!
@@ -529,8 +687,6 @@ directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITI
   lastRecord: Record @goField(forceResolver: true)
   records: [Record]! @goField(forceResolver: true)
 }
-`, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/types.graphql", Input: `scalar Time
 `, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
@@ -566,6 +722,66 @@ func (ec *executionContext) field_Application_topics_args(ctx context.Context, r
 		}
 	}
 	args["pattern"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createApplicationProfile_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 api.CreateApplicationProfileRequest
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNCreateApplicationProfileInput2githubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐCreateApplicationProfileRequest(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createApplication_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 api.CreateApplicationRequest
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNCreateApplicationInput2githubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐCreateApplicationRequest(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteApplicationProfile_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteApplication_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -1031,6 +1247,337 @@ func (ec *executionContext) _ApplicationProfile_enabled(ctx context.Context, fie
 	res := resTmp.(bool)
 	fc.Result = res
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _CreateApplicationOutput_application(ctx context.Context, field graphql.CollectedField, obj *model.CreateApplicationOutput) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "CreateApplicationOutput",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Application, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*api.Application)
+	fc.Result = res
+	return ec.marshalOApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _CreateApplicationOutput_success(ctx context.Context, field graphql.CollectedField, obj *model.CreateApplicationOutput) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "CreateApplicationOutput",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Success, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _CreateApplicationProfileOutput_applicationProfile(ctx context.Context, field graphql.CollectedField, obj *model.CreateApplicationProfileOutput) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "CreateApplicationProfileOutput",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ApplicationProfile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*api.ApplicationProfile)
+	fc.Result = res
+	return ec.marshalOApplicationProfile2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplicationProfile(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _CreateApplicationProfileOutput_success(ctx context.Context, field graphql.CollectedField, obj *model.CreateApplicationProfileOutput) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "CreateApplicationProfileOutput",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Success, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_deleteAccount(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteAccount(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_createApplication(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_createApplication_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateApplication(rctx, args["input"].(api.CreateApplicationRequest))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.CreateApplicationOutput)
+	fc.Result = res
+	return ec.marshalOCreateApplicationOutput2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐCreateApplicationOutput(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_deleteApplication(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_deleteApplication_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteApplication(rctx, args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_createApplicationProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_createApplicationProfile_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateApplicationProfile(rctx, args["input"].(api.CreateApplicationProfileRequest))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.CreateApplicationProfileOutput)
+	fc.Result = res
+	return ec.marshalOCreateApplicationProfileOutput2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐCreateApplicationProfileOutput(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_deleteApplicationProfile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_deleteApplicationProfile_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteApplicationProfile(rctx, args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_account(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2965,6 +3512,62 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputCreateApplicationInput(ctx context.Context, obj interface{}) (api.CreateApplicationRequest, error) {
+	var it api.CreateApplicationRequest
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "name":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			it.Name, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputCreateApplicationProfileInput(ctx context.Context, obj interface{}) (api.CreateApplicationProfileRequest, error) {
+	var it api.CreateApplicationProfileRequest
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "name":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			it.Name, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "applicationId":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("applicationId"))
+			it.ApplicationID, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "password":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+			it.Password, err = ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -3161,6 +3764,109 @@ func (ec *executionContext) _ApplicationProfile(ctx context.Context, sel ast.Sel
 				}
 				return res
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var createApplicationOutputImplementors = []string{"CreateApplicationOutput"}
+
+func (ec *executionContext) _CreateApplicationOutput(ctx context.Context, sel ast.SelectionSet, obj *model.CreateApplicationOutput) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createApplicationOutputImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreateApplicationOutput")
+		case "application":
+			out.Values[i] = ec._CreateApplicationOutput_application(ctx, field, obj)
+		case "success":
+			out.Values[i] = ec._CreateApplicationOutput_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var createApplicationProfileOutputImplementors = []string{"CreateApplicationProfileOutput"}
+
+func (ec *executionContext) _CreateApplicationProfileOutput(ctx context.Context, sel ast.SelectionSet, obj *model.CreateApplicationProfileOutput) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createApplicationProfileOutputImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreateApplicationProfileOutput")
+		case "applicationProfile":
+			out.Values[i] = ec._CreateApplicationProfileOutput_applicationProfile(ctx, field, obj)
+		case "success":
+			out.Values[i] = ec._CreateApplicationProfileOutput_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var mutationImplementors = []string{"Mutation"}
+
+func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationImplementors)
+
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Mutation",
+	})
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Mutation")
+		case "deleteAccount":
+			out.Values[i] = ec._Mutation_deleteAccount(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "createApplication":
+			out.Values[i] = ec._Mutation_createApplication(ctx, field)
+		case "deleteApplication":
+			out.Values[i] = ec._Mutation_deleteApplication(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "createApplicationProfile":
+			out.Values[i] = ec._Mutation_createApplicationProfile(ctx, field)
+		case "deleteApplicationProfile":
+			out.Values[i] = ec._Mutation_deleteApplicationProfile(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3912,6 +4618,16 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
+func (ec *executionContext) unmarshalNCreateApplicationInput2githubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐCreateApplicationRequest(ctx context.Context, v interface{}) (api.CreateApplicationRequest, error) {
+	res, err := ec.unmarshalInputCreateApplicationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateApplicationProfileInput2githubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐCreateApplicationProfileRequest(ctx context.Context, v interface{}) (api.CreateApplicationProfileRequest, error) {
+	res, err := ec.unmarshalInputCreateApplicationProfileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
 	res, err := graphql.UnmarshalID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4369,6 +5085,20 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	return graphql.MarshalBoolean(*v)
+}
+
+func (ec *executionContext) marshalOCreateApplicationOutput2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐCreateApplicationOutput(ctx context.Context, sel ast.SelectionSet, v *model.CreateApplicationOutput) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CreateApplicationOutput(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCreateApplicationProfileOutput2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐCreateApplicationProfileOutput(ctx context.Context, sel ast.SelectionSet, v *model.CreateApplicationProfileOutput) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CreateApplicationProfileOutput(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalORecord2ᚕᚖgithubᚗcomᚋvxᚑlabsᚋnestᚋnestᚋapiᚐRecord(ctx context.Context, sel ast.SelectionSet, v []*api1.Record) graphql.Marshaler {

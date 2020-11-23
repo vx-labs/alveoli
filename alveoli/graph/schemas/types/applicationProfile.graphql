@@ -1,0 +1,22 @@
+type ApplicationProfile
+  @goModel(
+    model: "github.com/vx-labs/vespiary/vespiary/api.ApplicationProfile"
+  ) {
+  id: ID! @goField(forceResolver: true)
+  name: String! @goField(forceResolver: true)
+  applicationId: ID! @goField(forceResolver: true)
+  enabled: Boolean! @goField(forceResolver: true)
+}
+
+input CreateApplicationProfileInput
+  @goModel(
+    model: "github.com/vx-labs/vespiary/vespiary/api.CreateApplicationProfileRequest"
+  ) {
+  name: String!
+  applicationId: String!
+  password: String!
+}
+type CreateApplicationProfileOutput {
+  applicationProfile: ApplicationProfile
+  success: Boolean!
+}

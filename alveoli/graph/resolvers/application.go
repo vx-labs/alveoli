@@ -12,7 +12,7 @@ import (
 )
 
 type applicationResolver struct {
-	*Resolver
+	*resolver
 }
 
 func (a *applicationResolver) ID(ctx context.Context, obj *vespiary.Application) (string, error) {
@@ -25,7 +25,7 @@ func (a *applicationResolver) Name(ctx context.Context, obj *vespiary.Applicatio
 
 func (a *applicationResolver) Profiles(ctx context.Context, obj *vespiary.Application) ([]*vespiary.ApplicationProfile, error) {
 	authContext := auth.Informations(ctx)
-	out, err := a.Vespiary.ListApplicationProfilesByApplication(ctx,
+	out, err := a.vespiary.ListApplicationProfilesByApplication(ctx,
 		&vespiary.ListApplicationProfilesByApplicationRequest{
 			ApplicationID: obj.ID,
 			AccountID:     authContext.AccountID,
@@ -43,7 +43,7 @@ func (a *applicationResolver) Records(ctx context.Context, obj *vespiary.Applica
 	}
 	finalPattern := []byte(fmt.Sprintf("%s/%s/%s", authContext.AccountID, obj.ID, pattern))
 
-	stream, err := a.Nest.GetTopics(ctx, &nest.GetTopicsRequest{
+	stream, err := a.nest.GetTopics(ctx, &nest.GetTopicsRequest{
 		Pattern:       finalPattern,
 		Watch:         false,
 		FromTimestamp: time.Now().Add(-15 * 24 * time.Hour).UnixNano(),
@@ -70,7 +70,7 @@ func (a *applicationResolver) Topics(ctx context.Context, obj *vespiary.Applicat
 		pattern = *userPattern
 	}
 	finalPattern := []byte(fmt.Sprintf("%s/%s/%s", authContext.AccountID, obj.ID, pattern))
-	out, err := a.Nest.ListTopics(ctx, &nest.ListTopicsRequest{
+	out, err := a.nest.ListTopics(ctx, &nest.ListTopicsRequest{
 		Pattern: finalPattern,
 	})
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 )
 
 type sessionResolver struct {
-	*Resolver
+	*resolver
 }
 
 func (s *sessionResolver) ID(ctx context.Context, obj *wasp.SessionMetadatas) (string, error) {

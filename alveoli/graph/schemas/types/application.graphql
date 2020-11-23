@@ -6,3 +6,14 @@ type Application
   topics(pattern: String): [Topic]! @goField(forceResolver: true)
   records(pattern: String): [Record] @goField(forceResolver: true)
 }
+
+input CreateApplicationInput
+  @goModel(
+    model: "github.com/vx-labs/vespiary/vespiary/api.CreateApplicationRequest"
+  ) {
+  name: String!
+}
+type CreateApplicationOutput {
+  application: Application
+  success: Boolean!
+}

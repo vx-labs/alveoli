@@ -1,0 +1,7 @@
+type Mutation {
+  deleteAccount: ID!
+  createApplication(input: CreateApplicationInput!): CreateApplicationOutput
+  deleteApplication(id: ID!): ID!
+  createApplicationProfile(input: CreateApplicationProfileInput!): CreateApplicationProfileOutput
+  deleteApplicationProfile(id: ID!): ID!
+}

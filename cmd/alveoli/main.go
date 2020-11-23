@@ -66,11 +66,17 @@ func main() {
 				panic("unknown authentication provider specified")
 			}
 
-			srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolvers.Resolver{
-				Nest:     nestClient,
-				Vespiary: vespiaryClient,
-				Wasp:     waspClient,
-			}}))
+			srv := handler.NewDefaultServer(
+				generated.NewExecutableSchema(
+					generated.Config{
+						Resolvers: resolvers.Root(
+							waspClient,
+							vespiaryClient,
+							nestClient,
+						),
+					},
+				),
+			)
 
 			mux := http.NewServeMux()
 			mux.Handle("/graphql", srv)

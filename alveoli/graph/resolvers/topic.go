@@ -11,7 +11,7 @@ import (
 )
 
 type topicResolver struct {
-	*Resolver
+	*resolver
 }
 
 func (r *topicResolver) Name(ctx context.Context, obj *nest.TopicMetadata) (string, error) {
@@ -39,7 +39,7 @@ func (r *topicResolver) LastRecord(ctx context.Context, obj *nest.TopicMetadata)
 	return obj.LastRecord, nil
 }
 func (r *topicResolver) Records(ctx context.Context, obj *nest.TopicMetadata) ([]*nest.Record, error) {
-	stream, err := r.Nest.GetTopics(ctx, &nest.GetTopicsRequest{
+	stream, err := r.nest.GetTopics(ctx, &nest.GetTopicsRequest{
 		Pattern:       obj.Name,
 		Watch:         false,
 		FromTimestamp: time.Now().Add(-15 * 24 * time.Hour).UnixNano(),
