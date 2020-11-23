@@ -1,0 +1,8 @@
+type Session
+  @goModel(model: "github.com/vx-labs/wasp/v4/wasp/api.SessionMetadatas") {
+  id: String! @goField(forceResolver: true)
+  clientId: String! @goField(forceResolver: true)
+  applicationId: String! @goField(forceResolver: true)
+  applicationProfileId: String! @goField(forceResolver: true)
+  connectedAt: Time! @goField(forceResolver: true)
+}

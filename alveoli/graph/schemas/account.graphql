@@ -1,0 +1,4 @@
+type Account @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Account"){
+  id: String!
+  name: String!
+}
