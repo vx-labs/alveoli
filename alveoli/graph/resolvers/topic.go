@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vx-labs/alveoli/alveoli/auth"
 	nest "github.com/vx-labs/nest/nest/api"
+	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 )
 
 type topicResolver struct {
@@ -27,6 +29,21 @@ func (r *topicResolver) ApplicationID(ctx context.Context, obj *nest.TopicMetada
 		return "", errors.New("failed to extract name from topic")
 	}
 	return tokens[1], nil
+}
+func (a *topicResolver) Application(ctx context.Context, obj *nest.TopicMetadata) (*vespiary.Application, error) {
+	authContext := auth.Informations(ctx)
+	id, err := a.ApplicationID(ctx, obj)
+	if err != nil {
+		return nil, err
+	}
+	out, err := a.vespiary.GetApplicationByAccountID(ctx, &vespiary.GetApplicationByAccountIDRequest{
+		AccountID: authContext.AccountID,
+		Id:        id,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out.Application, nil
 }
 
 func (r *topicResolver) MessageCount(ctx context.Context, obj *nest.TopicMetadata) (int, error) {

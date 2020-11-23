@@ -5,9 +5,13 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gorilla/websocket"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -77,6 +81,16 @@ func main() {
 					},
 				),
 			)
+			srv.AddTransport(transport.POST{})
+			srv.AddTransport(transport.Websocket{
+				KeepAlivePingInterval: 10 * time.Second,
+				Upgrader: websocket.Upgrader{
+					CheckOrigin: func(r *http.Request) bool {
+						return true
+					},
+				},
+			})
+			srv.Use(extension.Introspection{})
 
 			mux := http.NewServeMux()
 			mux.Handle("/graphql", srv)

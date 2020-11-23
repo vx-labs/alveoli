@@ -1,6 +1,7 @@
 type Topic @goModel(model: "github.com/vx-labs/nest/nest/api.TopicMetadata") {
   name: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   guessedContentType: String!
   messageCount: Int! @goField(forceResolver: true)
   sizeInBytes: Int! @goField(forceResolver: true)

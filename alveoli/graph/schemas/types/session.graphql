@@ -3,6 +3,8 @@ type Session
   id: String! @goField(forceResolver: true)
   clientId: String! @goField(forceResolver: true)
   applicationId: String! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   applicationProfileId: String! @goField(forceResolver: true)
+  applicationProfile: ApplicationProfile! @goField(forceResolver: true)
   connectedAt: Time! @goField(forceResolver: true)
 }

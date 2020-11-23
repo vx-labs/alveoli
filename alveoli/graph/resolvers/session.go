@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/vx-labs/alveoli/alveoli/auth"
+	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 )
 
@@ -31,6 +33,37 @@ func (s *sessionResolver) ApplicationID(ctx context.Context, obj *wasp.SessionMe
 	}
 	return tokens[0], nil
 }
+func (a *sessionResolver) Application(ctx context.Context, obj *wasp.SessionMetadatas) (*vespiary.Application, error) {
+	authContext := auth.Informations(ctx)
+	id, err := a.ApplicationID(ctx, obj)
+	if err != nil {
+		return nil, err
+	}
+	out, err := a.vespiary.GetApplicationByAccountID(ctx, &vespiary.GetApplicationByAccountIDRequest{
+		AccountID: authContext.AccountID,
+		Id:        id,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out.Application, nil
+}
+func (a *sessionResolver) ApplicationProfile(ctx context.Context, obj *wasp.SessionMetadatas) (*vespiary.ApplicationProfile, error) {
+	authContext := auth.Informations(ctx)
+	id, err := a.ApplicationProfileID(ctx, obj)
+	if err != nil {
+		return nil, err
+	}
+	out, err := a.vespiary.GetApplicationProfileByAccountID(ctx, &vespiary.GetApplicationProfileByAccountIDRequest{
+		AccountID: authContext.AccountID,
+		ID:        id,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out.ApplicationProfile, nil
+}
+
 func (s *sessionResolver) ApplicationProfileID(ctx context.Context, obj *wasp.SessionMetadatas) (string, error) {
 	tokens := strings.SplitN(obj.MountPoint, "/", 2)
 	if len(tokens) != 2 {

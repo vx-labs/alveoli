@@ -5,6 +5,7 @@ type ApplicationProfile
   id: ID! @goField(forceResolver: true)
   name: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   enabled: Boolean! @goField(forceResolver: true)
 }
 

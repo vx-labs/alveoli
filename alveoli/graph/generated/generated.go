@@ -66,6 +66,7 @@ type ComplexityRoot struct {
 	}
 
 	ApplicationProfile struct {
+		Application   func(childComplexity int) int
 		ApplicationID func(childComplexity int) int
 		Enabled       func(childComplexity int) int
 		ID            func(childComplexity int) int
@@ -99,6 +100,7 @@ type ComplexityRoot struct {
 	}
 
 	Record struct {
+		Application   func(childComplexity int) int
 		ApplicationID func(childComplexity int) int
 		Payload       func(childComplexity int) int
 		SentAt        func(childComplexity int) int
@@ -107,7 +109,9 @@ type ComplexityRoot struct {
 	}
 
 	Session struct {
+		Application          func(childComplexity int) int
 		ApplicationID        func(childComplexity int) int
+		ApplicationProfile   func(childComplexity int) int
 		ApplicationProfileID func(childComplexity int) int
 		ClientID             func(childComplexity int) int
 		ConnectedAt          func(childComplexity int) int
@@ -115,6 +119,7 @@ type ComplexityRoot struct {
 	}
 
 	Topic struct {
+		Application        func(childComplexity int) int
 		ApplicationID      func(childComplexity int) int
 		GuessedContentType func(childComplexity int) int
 		LastRecord         func(childComplexity int) int
@@ -136,6 +141,7 @@ type ApplicationProfileResolver interface {
 	ID(ctx context.Context, obj *api.ApplicationProfile) (string, error)
 	Name(ctx context.Context, obj *api.ApplicationProfile) (string, error)
 	ApplicationID(ctx context.Context, obj *api.ApplicationProfile) (string, error)
+	Application(ctx context.Context, obj *api.ApplicationProfile) (*api.Application, error)
 	Enabled(ctx context.Context, obj *api.ApplicationProfile) (bool, error)
 }
 type MutationResolver interface {
@@ -155,6 +161,7 @@ type QueryResolver interface {
 type RecordResolver interface {
 	TopicName(ctx context.Context, obj *api1.Record) (string, error)
 	ApplicationID(ctx context.Context, obj *api1.Record) (string, error)
+	Application(ctx context.Context, obj *api1.Record) (*api.Application, error)
 	Payload(ctx context.Context, obj *api1.Record) (string, error)
 	SentBy(ctx context.Context, obj *api1.Record) (string, error)
 	SentAt(ctx context.Context, obj *api1.Record) (*time.Time, error)
@@ -163,12 +170,15 @@ type SessionResolver interface {
 	ID(ctx context.Context, obj *api2.SessionMetadatas) (string, error)
 	ClientID(ctx context.Context, obj *api2.SessionMetadatas) (string, error)
 	ApplicationID(ctx context.Context, obj *api2.SessionMetadatas) (string, error)
+	Application(ctx context.Context, obj *api2.SessionMetadatas) (*api.Application, error)
 	ApplicationProfileID(ctx context.Context, obj *api2.SessionMetadatas) (string, error)
+	ApplicationProfile(ctx context.Context, obj *api2.SessionMetadatas) (*api.ApplicationProfile, error)
 	ConnectedAt(ctx context.Context, obj *api2.SessionMetadatas) (*time.Time, error)
 }
 type TopicResolver interface {
 	Name(ctx context.Context, obj *api1.TopicMetadata) (string, error)
 	ApplicationID(ctx context.Context, obj *api1.TopicMetadata) (string, error)
+	Application(ctx context.Context, obj *api1.TopicMetadata) (*api.Application, error)
 
 	MessageCount(ctx context.Context, obj *api1.TopicMetadata) (int, error)
 	SizeInBytes(ctx context.Context, obj *api1.TopicMetadata) (int, error)
@@ -249,6 +259,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Application.Topics(childComplexity, args["pattern"].(*string)), true
+
+	case "ApplicationProfile.application":
+		if e.complexity.ApplicationProfile.Application == nil {
+			break
+		}
+
+		return e.complexity.ApplicationProfile.Application(childComplexity), true
 
 	case "ApplicationProfile.applicationId":
 		if e.complexity.ApplicationProfile.ApplicationID == nil {
@@ -401,6 +418,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Topics(childComplexity, args["pattern"].(*string)), true
 
+	case "Record.application":
+		if e.complexity.Record.Application == nil {
+			break
+		}
+
+		return e.complexity.Record.Application(childComplexity), true
+
 	case "Record.applicationId":
 		if e.complexity.Record.ApplicationID == nil {
 			break
@@ -436,12 +460,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Record.TopicName(childComplexity), true
 
+	case "Session.application":
+		if e.complexity.Session.Application == nil {
+			break
+		}
+
+		return e.complexity.Session.Application(childComplexity), true
+
 	case "Session.applicationId":
 		if e.complexity.Session.ApplicationID == nil {
 			break
 		}
 
 		return e.complexity.Session.ApplicationID(childComplexity), true
+
+	case "Session.applicationProfile":
+		if e.complexity.Session.ApplicationProfile == nil {
+			break
+		}
+
+		return e.complexity.Session.ApplicationProfile(childComplexity), true
 
 	case "Session.applicationProfileId":
 		if e.complexity.Session.ApplicationProfileID == nil {
@@ -470,6 +508,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Session.ID(childComplexity), true
+
+	case "Topic.application":
+		if e.complexity.Topic.Application == nil {
+			break
+		}
+
+		return e.complexity.Topic.Application(childComplexity), true
 
 	case "Topic.applicationId":
 		if e.complexity.Topic.ApplicationID == nil {
@@ -645,6 +690,7 @@ type CreateApplicationOutput {
   id: ID! @goField(forceResolver: true)
   name: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   enabled: Boolean! @goField(forceResolver: true)
 }
 
@@ -664,6 +710,7 @@ type CreateApplicationProfileOutput {
 	{Name: "alveoli/graph/schemas/types/record.graphql", Input: `type Record @goModel(model: "github.com/vx-labs/nest/nest/api.Record") {
   topicName: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   payload: String! @goField(forceResolver: true)
   sentBy: String! @goField(forceResolver: true)
   sentAt: Time! @goField(forceResolver: true)
@@ -674,13 +721,16 @@ type CreateApplicationProfileOutput {
   id: String! @goField(forceResolver: true)
   clientId: String! @goField(forceResolver: true)
   applicationId: String! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   applicationProfileId: String! @goField(forceResolver: true)
+  applicationProfile: ApplicationProfile! @goField(forceResolver: true)
   connectedAt: Time! @goField(forceResolver: true)
 }
 `, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/types/topic.graphql", Input: `type Topic @goModel(model: "github.com/vx-labs/nest/nest/api.TopicMetadata") {
   name: String! @goField(forceResolver: true)
   applicationId: ID! @goField(forceResolver: true)
+  application: Application! @goField(forceResolver: true)
   guessedContentType: String!
   messageCount: Int! @goField(forceResolver: true)
   sizeInBytes: Int! @goField(forceResolver: true)
@@ -1212,6 +1262,41 @@ func (ec *executionContext) _ApplicationProfile_applicationId(ctx context.Contex
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ApplicationProfile_application(ctx context.Context, field graphql.CollectedField, obj *api.ApplicationProfile) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ApplicationProfile",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.ApplicationProfile().Application(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.Application)
+	fc.Result = res
+	return ec.marshalNApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _ApplicationProfile_enabled(ctx context.Context, field graphql.CollectedField, obj *api.ApplicationProfile) (ret graphql.Marshaler) {
@@ -1903,6 +1988,41 @@ func (ec *executionContext) _Record_applicationId(ctx context.Context, field gra
 	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Record_application(ctx context.Context, field graphql.CollectedField, obj *api1.Record) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Record",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Record().Application(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.Application)
+	fc.Result = res
+	return ec.marshalNApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Record_payload(ctx context.Context, field graphql.CollectedField, obj *api1.Record) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2113,6 +2233,41 @@ func (ec *executionContext) _Session_applicationId(ctx context.Context, field gr
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _Session_application(ctx context.Context, field graphql.CollectedField, obj *api2.SessionMetadatas) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Session",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Session().Application(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.Application)
+	fc.Result = res
+	return ec.marshalNApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _Session_applicationProfileId(ctx context.Context, field graphql.CollectedField, obj *api2.SessionMetadatas) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -2146,6 +2301,41 @@ func (ec *executionContext) _Session_applicationProfileId(ctx context.Context, f
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Session_applicationProfile(ctx context.Context, field graphql.CollectedField, obj *api2.SessionMetadatas) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Session",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Session().ApplicationProfile(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.ApplicationProfile)
+	fc.Result = res
+	return ec.marshalNApplicationProfile2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplicationProfile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Session_connectedAt(ctx context.Context, field graphql.CollectedField, obj *api2.SessionMetadatas) (ret graphql.Marshaler) {
@@ -2251,6 +2441,41 @@ func (ec *executionContext) _Topic_applicationId(ctx context.Context, field grap
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Topic_application(ctx context.Context, field graphql.CollectedField, obj *api1.TopicMetadata) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Topic",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Topic().Application(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.Application)
+	fc.Result = res
+	return ec.marshalNApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Topic_guessedContentType(ctx context.Context, field graphql.CollectedField, obj *api1.TopicMetadata) (ret graphql.Marshaler) {
@@ -3750,6 +3975,20 @@ func (ec *executionContext) _ApplicationProfile(ctx context.Context, sel ast.Sel
 				}
 				return res
 			})
+		case "application":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._ApplicationProfile_application(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "enabled":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -4017,6 +4256,20 @@ func (ec *executionContext) _Record(ctx context.Context, sel ast.SelectionSet, o
 				}
 				return res
 			})
+		case "application":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Record_application(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "payload":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -4123,6 +4376,20 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 				}
 				return res
 			})
+		case "application":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Session_application(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "applicationProfileId":
 			field := field
 			out.Concurrently(i, func() (res graphql.Marshaler) {
@@ -4132,6 +4399,20 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 					}
 				}()
 				res = ec._Session_applicationProfileId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "applicationProfile":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Session_applicationProfile(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -4196,6 +4477,20 @@ func (ec *executionContext) _Topic(ctx context.Context, sel ast.SelectionSet, ob
 					}
 				}()
 				res = ec._Topic_applicationId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "application":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Topic_application(ctx, field, obj)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}
@@ -4529,6 +4824,10 @@ func (ec *executionContext) marshalNAccount2ᚖgithubᚗcomᚋvxᚑlabsᚋvespia
 	return ec._Account(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNApplication2githubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx context.Context, sel ast.SelectionSet, v api.Application) graphql.Marshaler {
+	return ec._Application(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNApplication2ᚕᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx context.Context, sel ast.SelectionSet, v []*api.Application) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -4566,6 +4865,20 @@ func (ec *executionContext) marshalNApplication2ᚕᚖgithubᚗcomᚋvxᚑlabs�
 	return ret
 }
 
+func (ec *executionContext) marshalNApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx context.Context, sel ast.SelectionSet, v *api.Application) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Application(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNApplicationProfile2githubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplicationProfile(ctx context.Context, sel ast.SelectionSet, v api.ApplicationProfile) graphql.Marshaler {
+	return ec._ApplicationProfile(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNApplicationProfile2ᚕᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplicationProfile(ctx context.Context, sel ast.SelectionSet, v []*api.ApplicationProfile) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -4601,6 +4914,16 @@ func (ec *executionContext) marshalNApplicationProfile2ᚕᚖgithubᚗcomᚋvx�
 	}
 	wg.Wait()
 	return ret
+}
+
+func (ec *executionContext) marshalNApplicationProfile2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplicationProfile(ctx context.Context, sel ast.SelectionSet, v *api.ApplicationProfile) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._ApplicationProfile(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
