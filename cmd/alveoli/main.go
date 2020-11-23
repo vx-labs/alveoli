@@ -1,33 +1,24 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
-	"github.com/graphql-go/graphql"
-	"github.com/julienschmidt/httprouter"
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/vx-labs/alveoli/alveoli"
 	"github.com/vx-labs/alveoli/alveoli/auth"
-	"github.com/vx-labs/alveoli/alveoli/handlers"
+	"github.com/vx-labs/alveoli/alveoli/graph/generated"
+	"github.com/vx-labs/alveoli/alveoli/graph/resolvers"
 	"github.com/vx-labs/alveoli/alveoli/rpc"
 	nest "github.com/vx-labs/nest/nest/api"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/v4/wasp/api"
 )
-
-type postData struct {
-	Query     string                 `json:"query"`
-	Operation string                 `json:"operation"`
-	Variables map[string]interface{} `json:"variables"`
-}
 
 func main() {
 	config := viper.New()
@@ -40,7 +31,6 @@ func main() {
 			config.BindPFlags(cmd.Flags())
 		},
 		Run: func(cmd *cobra.Command, _ []string) {
-			router := httprouter.New()
 
 			rpcDialer := rpc.GRPCDialer(rpc.ClientConfig{
 				InsecureSkipVerify:          config.GetBool("insecure"),
@@ -65,9 +55,6 @@ func main() {
 			vespiaryClient := vespiary.NewVespiaryClient(authConn)
 			waspClient := wasp.NewMQTTClient(brokerConn)
 			nestClient := nest.NewMessagesClient(nestConn)
-			eventsClient := nest.NewEventsClient(nestConn)
-
-			graphQLSchema := alveoli.Schema(vespiaryClient, waspClient, nestClient)
 
 			var authProvider auth.Provider
 			switch config.GetString("authentication-provider") {
@@ -79,35 +66,15 @@ func main() {
 				panic("unknown authentication provider specified")
 			}
 
-			handlers.Register(router, authProvider, vespiaryClient, nestClient, eventsClient, waspClient)
+			srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolvers.Resolver{
+				Nest:     nestClient,
+				Vespiary: vespiaryClient,
+				Wasp:     waspClient,
+			}}))
 
-			router.POST("/graphql", func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-				var p postData
-				if err := json.NewDecoder(req.Body).Decode(&p); err != nil {
-					w.WriteHeader(400)
-					return
-				}
-				result := graphql.Do(graphql.Params{
-					Context:        req.Context(),
-					Schema:         graphQLSchema,
-					RequestString:  p.Query,
-					VariableValues: p.Variables,
-					OperationName:  p.Operation,
-				})
-				w.Header().Add("Content-Type", "application/json")
-				if err := json.NewEncoder(w).Encode(result); err != nil {
-					fmt.Printf("could not write result to response: %s", err)
-				}
-			})
-			router.GET("/graphql", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-				fd, err := os.Open("./static/index.html")
-				defer fd.Close() //Close after function return
-				if err != nil {
-					http.Error(w, "File not found.", 404)
-					return
-				}
-				io.Copy(w, fd)
-			})
+			mux := http.NewServeMux()
+			mux.Handle("/graphql", srv)
+			mux.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
 
 			corsHandler := cors.New(cors.Options{
 				AllowedMethods: []string{
@@ -124,7 +91,7 @@ func main() {
 				AllowCredentials: true,
 			})
 			port := fmt.Sprintf(":%d", config.GetInt("port"))
-			log.Fatal(http.ListenAndServe(port, corsHandler.Handler(&Logger{handler: authProvider.Handler(router)})))
+			log.Fatal(http.ListenAndServe(port, corsHandler.Handler(&Logger{handler: authProvider.Handler(mux)})))
 		},
 	}
 	cmd.Flags().Bool("insecure", false, "Disable GRPC client-side TLS validation.")

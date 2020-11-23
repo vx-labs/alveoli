@@ -1,0 +1,8 @@
+type Application
+  @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Application") {
+  id: ID! @goField(forceResolver: true)
+  name: String! @goField(forceResolver: true)
+  profiles: [ApplicationProfile]! @goField(forceResolver: true)
+  topics(pattern: String): [Topic]! @goField(forceResolver: true)
+  records(pattern: String): [Record] @goField(forceResolver: true)
+}

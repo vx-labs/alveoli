@@ -1,0 +1,7 @@
+type Query {
+  account: Account!
+  applications: [Application]!
+  applicationProfiles: [ApplicationProfile]!
+  topics(pattern: String): [Topic]!
+  sessions: [Session]!
+}

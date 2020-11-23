@@ -1,0 +1,17 @@
+schema:
+  - alveoli/graph/schemas/*.graphql
+exec:
+  filename: alveoli/graph/generated/generated.go
+  package: generated
+
+model:
+  filename: alveoli/graph/model/models_gen.go
+  package: model
+
+resolver:
+  filename: alveoli/graph/resolvers/resolver.go
+  package: resolvers
+  type: Resolver
+
+autobind: []
+skip_validation: true

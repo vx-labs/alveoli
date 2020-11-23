@@ -1,0 +1,7 @@
+type Record @goModel(model: "github.com/vx-labs/nest/nest/api.Record") {
+  topicName: String! @goField(forceResolver: true)
+  applicationId: ID! @goField(forceResolver: true)
+  payload: String! @goField(forceResolver: true)
+  sentBy: String! @goField(forceResolver: true)
+  sentAt: Time! @goField(forceResolver: true)
+}
