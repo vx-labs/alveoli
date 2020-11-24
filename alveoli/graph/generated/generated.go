@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -45,6 +47,7 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Record() RecordResolver
 	Session() SessionResolver
+	Subscription() SubscriptionResolver
 	Topic() TopicResolver
 }
 
@@ -65,12 +68,33 @@ type ComplexityRoot struct {
 		Topics   func(childComplexity int, pattern *string) int
 	}
 
+	ApplicationCreatedEvent struct {
+		Application func(childComplexity int) int
+	}
+
+	ApplicationDeletedEvent struct {
+		ID func(childComplexity int) int
+	}
+
 	ApplicationProfile struct {
 		Application   func(childComplexity int) int
 		ApplicationID func(childComplexity int) int
 		Enabled       func(childComplexity int) int
 		ID            func(childComplexity int) int
 		Name          func(childComplexity int) int
+	}
+
+	ApplicationProfileCreatedEvent struct {
+		ApplicationProfile func(childComplexity int) int
+	}
+
+	ApplicationProfileDeletedEvent struct {
+		ID func(childComplexity int) int
+	}
+
+	AuditEvent struct {
+		Payload func(childComplexity int) int
+		Type    func(childComplexity int) int
 	}
 
 	CreateApplicationOutput struct {
@@ -116,6 +140,19 @@ type ComplexityRoot struct {
 		ClientID             func(childComplexity int) int
 		ConnectedAt          func(childComplexity int) int
 		ID                   func(childComplexity int) int
+	}
+
+	SessionConnectedEvent struct {
+		ClientID func(childComplexity int) int
+		ID       func(childComplexity int) int
+	}
+
+	SessionDisconnectedEvent struct {
+		ID func(childComplexity int) int
+	}
+
+	Subscription struct {
+		AuditEvents func(childComplexity int) int
 	}
 
 	Topic struct {
@@ -174,6 +211,9 @@ type SessionResolver interface {
 	ApplicationProfileID(ctx context.Context, obj *api2.SessionMetadatas) (string, error)
 	ApplicationProfile(ctx context.Context, obj *api2.SessionMetadatas) (*api.ApplicationProfile, error)
 	ConnectedAt(ctx context.Context, obj *api2.SessionMetadatas) (*time.Time, error)
+}
+type SubscriptionResolver interface {
+	AuditEvents(ctx context.Context) (<-chan *model.AuditEvent, error)
 }
 type TopicResolver interface {
 	Name(ctx context.Context, obj *api1.TopicMetadata) (string, error)
@@ -260,6 +300,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Application.Topics(childComplexity, args["pattern"].(*string)), true
 
+	case "ApplicationCreatedEvent.application":
+		if e.complexity.ApplicationCreatedEvent.Application == nil {
+			break
+		}
+
+		return e.complexity.ApplicationCreatedEvent.Application(childComplexity), true
+
+	case "ApplicationDeletedEvent.id":
+		if e.complexity.ApplicationDeletedEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.ApplicationDeletedEvent.ID(childComplexity), true
+
 	case "ApplicationProfile.application":
 		if e.complexity.ApplicationProfile.Application == nil {
 			break
@@ -294,6 +348,34 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ApplicationProfile.Name(childComplexity), true
+
+	case "ApplicationProfileCreatedEvent.applicationProfile":
+		if e.complexity.ApplicationProfileCreatedEvent.ApplicationProfile == nil {
+			break
+		}
+
+		return e.complexity.ApplicationProfileCreatedEvent.ApplicationProfile(childComplexity), true
+
+	case "ApplicationProfileDeletedEvent.id":
+		if e.complexity.ApplicationProfileDeletedEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.ApplicationProfileDeletedEvent.ID(childComplexity), true
+
+	case "AuditEvent.payload":
+		if e.complexity.AuditEvent.Payload == nil {
+			break
+		}
+
+		return e.complexity.AuditEvent.Payload(childComplexity), true
+
+	case "AuditEvent.type":
+		if e.complexity.AuditEvent.Type == nil {
+			break
+		}
+
+		return e.complexity.AuditEvent.Type(childComplexity), true
 
 	case "CreateApplicationOutput.application":
 		if e.complexity.CreateApplicationOutput.Application == nil {
@@ -509,6 +591,34 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Session.ID(childComplexity), true
 
+	case "SessionConnectedEvent.clientId":
+		if e.complexity.SessionConnectedEvent.ClientID == nil {
+			break
+		}
+
+		return e.complexity.SessionConnectedEvent.ClientID(childComplexity), true
+
+	case "SessionConnectedEvent.id":
+		if e.complexity.SessionConnectedEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.SessionConnectedEvent.ID(childComplexity), true
+
+	case "SessionDisconnectedEvent.id":
+		if e.complexity.SessionDisconnectedEvent.ID == nil {
+			break
+		}
+
+		return e.complexity.SessionDisconnectedEvent.ID(childComplexity), true
+
+	case "Subscription.auditEvents":
+		if e.complexity.Subscription.AuditEvents == nil {
+			break
+		}
+
+		return e.complexity.Subscription.AuditEvents(childComplexity), true
+
 	case "Topic.application":
 		if e.complexity.Topic.Application == nil {
 			break
@@ -603,6 +713,23 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
+	case ast.Subscription:
+		next := ec._Subscription(ctx, rc.Operation.SelectionSet)
+
+		var buf bytes.Buffer
+		return func(ctx context.Context) *graphql.Response {
+			buf.Reset()
+			data := next()
+
+			if data == nil {
+				return nil
+			}
+			data.MarshalGQL(&buf)
+
+			return &graphql.Response{
+				Data: buf.Bytes(),
+			}
+		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -659,6 +786,9 @@ directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITI
 `, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/scalars.graphql", Input: `scalar Time
 `, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/subscription.graphql", Input: `type Subscription {
+  auditEvents: AuditEvent!
+}`, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/types/account.graphql", Input: `type Account @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Account"){
   id: String!
   name: String!
@@ -705,6 +835,46 @@ input CreateApplicationProfileInput
 type CreateApplicationProfileOutput {
   applicationProfile: ApplicationProfile
   success: Boolean!
+}
+`, BuiltIn: false},
+	{Name: "alveoli/graph/schemas/types/events.graphql", Input: `enum AuditEventType {
+  applicationCreated
+  applicationDeleted
+  applicationProfileCreated
+  applicationProfileDeleted
+  sessionConnected
+  sessionDisconnected
+}
+type ApplicationCreatedEvent {
+  application: Application!
+}
+type ApplicationDeletedEvent {
+  id: ID!
+}
+type ApplicationProfileCreatedEvent {
+   applicationProfile: ApplicationProfile!
+}
+type ApplicationProfileDeletedEvent {
+  id: ID!
+}
+type SessionConnectedEvent {
+  id: ID!
+  clientId: String!
+}
+type SessionDisconnectedEvent {
+  id: ID!
+}
+union AuditEventPayload =
+    ApplicationCreatedEvent
+  | ApplicationDeletedEvent
+  | ApplicationProfileCreatedEvent
+  | ApplicationProfileDeletedEvent
+  | SessionConnectedEvent
+  | SessionDisconnectedEvent
+
+type AuditEvent {
+  type: AuditEventType!
+  payload: AuditEventPayload!
 }
 `, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/types/record.graphql", Input: `type Record @goModel(model: "github.com/vx-labs/nest/nest/api.Record") {
@@ -1159,6 +1329,76 @@ func (ec *executionContext) _Application_records(ctx context.Context, field grap
 	return ec.marshalORecord2ᚕᚖgithubᚗcomᚋvxᚑlabsᚋnestᚋnestᚋapiᚐRecord(ctx, field.Selections, res)
 }
 
+func (ec *executionContext) _ApplicationCreatedEvent_application(ctx context.Context, field graphql.CollectedField, obj *model.ApplicationCreatedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ApplicationCreatedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Application, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.Application)
+	fc.Result = res
+	return ec.marshalNApplication2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplication(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ApplicationDeletedEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.ApplicationDeletedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ApplicationDeletedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
 func (ec *executionContext) _ApplicationProfile_id(ctx context.Context, field graphql.CollectedField, obj *api.ApplicationProfile) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1332,6 +1572,146 @@ func (ec *executionContext) _ApplicationProfile_enabled(ctx context.Context, fie
 	res := resTmp.(bool)
 	fc.Result = res
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ApplicationProfileCreatedEvent_applicationProfile(ctx context.Context, field graphql.CollectedField, obj *model.ApplicationProfileCreatedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ApplicationProfileCreatedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ApplicationProfile, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*api.ApplicationProfile)
+	fc.Result = res
+	return ec.marshalNApplicationProfile2ᚖgithubᚗcomᚋvxᚑlabsᚋvespiaryᚋvespiaryᚋapiᚐApplicationProfile(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _ApplicationProfileDeletedEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.ApplicationProfileDeletedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "ApplicationProfileDeletedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _AuditEvent_type(ctx context.Context, field graphql.CollectedField, obj *model.AuditEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "AuditEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Type, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.AuditEventType)
+	fc.Result = res
+	return ec.marshalNAuditEventType2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEventType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _AuditEvent_payload(ctx context.Context, field graphql.CollectedField, obj *model.AuditEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "AuditEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Payload, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.AuditEventPayload)
+	fc.Result = res
+	return ec.marshalNAuditEventPayload2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEventPayload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _CreateApplicationOutput_application(ctx context.Context, field graphql.CollectedField, obj *model.CreateApplicationOutput) (ret graphql.Marshaler) {
@@ -2371,6 +2751,156 @@ func (ec *executionContext) _Session_connectedAt(ctx context.Context, field grap
 	res := resTmp.(*time.Time)
 	fc.Result = res
 	return ec.marshalNTime2ᚖtimeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SessionConnectedEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionConnectedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SessionConnectedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SessionConnectedEvent_clientId(ctx context.Context, field graphql.CollectedField, obj *model.SessionConnectedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SessionConnectedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ClientID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _SessionDisconnectedEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionDisconnectedEvent) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "SessionDisconnectedEvent",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   false,
+		IsResolver: false,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Subscription_auditEvents(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().AuditEvents(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func() graphql.Marshaler {
+		res, ok := <-resTmp.(<-chan *model.AuditEvent)
+		if !ok {
+			return nil
+		}
+		return graphql.WriterFunc(func(w io.Writer) {
+			w.Write([]byte{'{'})
+			graphql.MarshalString(field.Alias).MarshalGQL(w)
+			w.Write([]byte{':'})
+			ec.marshalNAuditEvent2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEvent(ctx, field.Selections, res).MarshalGQL(w)
+			w.Write([]byte{'}'})
+		})
+	}
 }
 
 func (ec *executionContext) _Topic_name(ctx context.Context, field graphql.CollectedField, obj *api1.TopicMetadata) (ret graphql.Marshaler) {
@@ -3797,6 +4327,57 @@ func (ec *executionContext) unmarshalInputCreateApplicationProfileInput(ctx cont
 
 // region    ************************** interface.gotpl ***************************
 
+func (ec *executionContext) _AuditEventPayload(ctx context.Context, sel ast.SelectionSet, obj model.AuditEventPayload) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case model.ApplicationCreatedEvent:
+		return ec._ApplicationCreatedEvent(ctx, sel, &obj)
+	case *model.ApplicationCreatedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ApplicationCreatedEvent(ctx, sel, obj)
+	case model.ApplicationDeletedEvent:
+		return ec._ApplicationDeletedEvent(ctx, sel, &obj)
+	case *model.ApplicationDeletedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ApplicationDeletedEvent(ctx, sel, obj)
+	case model.ApplicationProfileCreatedEvent:
+		return ec._ApplicationProfileCreatedEvent(ctx, sel, &obj)
+	case *model.ApplicationProfileCreatedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ApplicationProfileCreatedEvent(ctx, sel, obj)
+	case model.ApplicationProfileDeletedEvent:
+		return ec._ApplicationProfileDeletedEvent(ctx, sel, &obj)
+	case *model.ApplicationProfileDeletedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._ApplicationProfileDeletedEvent(ctx, sel, obj)
+	case model.SessionConnectedEvent:
+		return ec._SessionConnectedEvent(ctx, sel, &obj)
+	case *model.SessionConnectedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SessionConnectedEvent(ctx, sel, obj)
+	case model.SessionDisconnectedEvent:
+		return ec._SessionDisconnectedEvent(ctx, sel, &obj)
+	case *model.SessionDisconnectedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._SessionDisconnectedEvent(ctx, sel, obj)
+	default:
+		panic(fmt.Errorf("unexpected type %T", obj))
+	}
+}
+
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
@@ -3922,6 +4503,60 @@ func (ec *executionContext) _Application(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var applicationCreatedEventImplementors = []string{"ApplicationCreatedEvent", "AuditEventPayload"}
+
+func (ec *executionContext) _ApplicationCreatedEvent(ctx context.Context, sel ast.SelectionSet, obj *model.ApplicationCreatedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, applicationCreatedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApplicationCreatedEvent")
+		case "application":
+			out.Values[i] = ec._ApplicationCreatedEvent_application(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var applicationDeletedEventImplementors = []string{"ApplicationDeletedEvent", "AuditEventPayload"}
+
+func (ec *executionContext) _ApplicationDeletedEvent(ctx context.Context, sel ast.SelectionSet, obj *model.ApplicationDeletedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, applicationDeletedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApplicationDeletedEvent")
+		case "id":
+			out.Values[i] = ec._ApplicationDeletedEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var applicationProfileImplementors = []string{"ApplicationProfile"}
 
 func (ec *executionContext) _ApplicationProfile(ctx context.Context, sel ast.SelectionSet, obj *api.ApplicationProfile) graphql.Marshaler {
@@ -4003,6 +4638,92 @@ func (ec *executionContext) _ApplicationProfile(ctx context.Context, sel ast.Sel
 				}
 				return res
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var applicationProfileCreatedEventImplementors = []string{"ApplicationProfileCreatedEvent", "AuditEventPayload"}
+
+func (ec *executionContext) _ApplicationProfileCreatedEvent(ctx context.Context, sel ast.SelectionSet, obj *model.ApplicationProfileCreatedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, applicationProfileCreatedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApplicationProfileCreatedEvent")
+		case "applicationProfile":
+			out.Values[i] = ec._ApplicationProfileCreatedEvent_applicationProfile(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var applicationProfileDeletedEventImplementors = []string{"ApplicationProfileDeletedEvent", "AuditEventPayload"}
+
+func (ec *executionContext) _ApplicationProfileDeletedEvent(ctx context.Context, sel ast.SelectionSet, obj *model.ApplicationProfileDeletedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, applicationProfileDeletedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ApplicationProfileDeletedEvent")
+		case "id":
+			out.Values[i] = ec._ApplicationProfileDeletedEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var auditEventImplementors = []string{"AuditEvent"}
+
+func (ec *executionContext) _AuditEvent(ctx context.Context, sel ast.SelectionSet, obj *model.AuditEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, auditEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AuditEvent")
+		case "type":
+			out.Values[i] = ec._AuditEvent_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "payload":
+			out.Values[i] = ec._AuditEvent_payload(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4441,6 +5162,85 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 		return graphql.Null
 	}
 	return out
+}
+
+var sessionConnectedEventImplementors = []string{"SessionConnectedEvent", "AuditEventPayload"}
+
+func (ec *executionContext) _SessionConnectedEvent(ctx context.Context, sel ast.SelectionSet, obj *model.SessionConnectedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionConnectedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionConnectedEvent")
+		case "id":
+			out.Values[i] = ec._SessionConnectedEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "clientId":
+			out.Values[i] = ec._SessionConnectedEvent_clientId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var sessionDisconnectedEventImplementors = []string{"SessionDisconnectedEvent", "AuditEventPayload"}
+
+func (ec *executionContext) _SessionDisconnectedEvent(ctx context.Context, sel ast.SelectionSet, obj *model.SessionDisconnectedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, sessionDisconnectedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SessionDisconnectedEvent")
+		case "id":
+			out.Values[i] = ec._SessionDisconnectedEvent_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var subscriptionImplementors = []string{"Subscription"}
+
+func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func() graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
+	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
+		Object: "Subscription",
+	})
+	if len(fields) != 1 {
+		ec.Errorf(ctx, "must subscribe to exactly one stream")
+		return nil
+	}
+
+	switch fields[0].Name {
+	case "auditEvents":
+		return ec._Subscription_auditEvents(ctx, fields[0])
+	default:
+		panic("unknown field " + strconv.Quote(fields[0].Name))
+	}
 }
 
 var topicImplementors = []string{"Topic"}
@@ -4924,6 +5724,40 @@ func (ec *executionContext) marshalNApplicationProfile2ᚖgithubᚗcomᚋvxᚑla
 		return graphql.Null
 	}
 	return ec._ApplicationProfile(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAuditEvent2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEvent(ctx context.Context, sel ast.SelectionSet, v model.AuditEvent) graphql.Marshaler {
+	return ec._AuditEvent(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNAuditEvent2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEvent(ctx context.Context, sel ast.SelectionSet, v *model.AuditEvent) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._AuditEvent(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAuditEventPayload2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEventPayload(ctx context.Context, sel ast.SelectionSet, v model.AuditEventPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._AuditEventPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAuditEventType2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEventType(ctx context.Context, v interface{}) (model.AuditEventType, error) {
+	var res model.AuditEventType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAuditEventType2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEventType(ctx context.Context, sel ast.SelectionSet, v model.AuditEventType) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {

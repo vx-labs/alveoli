@@ -56,6 +56,8 @@ ALVEOLI_AUTH0_API_ID="{{ .Data.auth0_api_id }}"
 ALVEOLI_RPC_TLS_CERTIFICATE_FILE="{{ env "NOMAD_TASK_DIR" }}/cert.pem"
 ALVEOLI_RPC_TLS_PRIVATE_KEY_FILE="{{ env "NOMAD_TASK_DIR" }}/key.pem"
 ALVEOLI_RPC_TLS_CERTIFICATE_AUTHORITY_FILE="{{ env "NOMAD_TASK_DIR" }}/ca.pem"
+ALVEOLI_SUBSCRIPTIONS_MQTT_BROKER_SNI="broker.iot.cloud.vx-labs.net"
+ALVEOLI_SUBSCRIPTIONS_MQTT_BROKER="10.64.72.135"
 no_proxy="10.0.0.0/8,172.16.0.0/12,*.service.consul"
 {{end}}
         EOH
@@ -114,7 +116,6 @@ EOH
         }
 
         image = "${service_image}:${service_version}"
-        args = []
         force_pull = true
 
         port_map {

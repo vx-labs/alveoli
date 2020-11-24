@@ -1,0 +1,39 @@
+enum AuditEventType {
+  applicationCreated
+  applicationDeleted
+  applicationProfileCreated
+  applicationProfileDeleted
+  sessionConnected
+  sessionDisconnected
+}
+type ApplicationCreatedEvent {
+  application: Application!
+}
+type ApplicationDeletedEvent {
+  id: ID!
+}
+type ApplicationProfileCreatedEvent {
+   applicationProfile: ApplicationProfile!
+}
+type ApplicationProfileDeletedEvent {
+  id: ID!
+}
+type SessionConnectedEvent {
+  id: ID!
+  clientId: String!
+}
+type SessionDisconnectedEvent {
+  id: ID!
+}
+union AuditEventPayload =
+    ApplicationCreatedEvent
+  | ApplicationDeletedEvent
+  | ApplicationProfileCreatedEvent
+  | ApplicationProfileDeletedEvent
+  | SessionConnectedEvent
+  | SessionDisconnectedEvent
+
+type AuditEvent {
+  type: AuditEventType!
+  payload: AuditEventPayload!
+}

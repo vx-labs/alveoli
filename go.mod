@@ -6,7 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.13.0
 	github.com/auth0/go-jwt-middleware v0.0.0-20200507191422-d30d7b9ece63
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/eclipse/paho.mqtt.golang v1.2.0 // indirect
+	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/graphql-go/graphql v0.7.9
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0

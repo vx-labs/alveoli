@@ -1,16 +1,20 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
-	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
@@ -69,11 +73,52 @@ func main() {
 			default:
 				panic("unknown authentication provider specified")
 			}
+			var mqttClient mqtt.Client
+
+			if config.GetString("rpc-tls-private-key-file") != "" && config.GetString("rpc-tls-certificate-file") != "" {
+				mqttBrokerURL, err := url.Parse(fmt.Sprintf("tls://%s:8883", config.GetString("subscriptions-mqtt-broker")))
+				if err != nil {
+					panic("invalid broker url")
+				}
+				cert, err := tls.LoadX509KeyPair(config.GetString("rpc-tls-certificate-file"), config.GetString("rpc-tls-private-key-file"))
+				if err != nil {
+					log.Panicf("failed to load tls credentials: %v", err)
+				}
+				pool, err := x509.SystemCertPool()
+				if err != nil {
+					panic("failed to load tls system cert pool")
+				}
+				mqttClient = mqtt.NewClient(&mqtt.ClientOptions{
+					Servers:       []*url.URL{mqttBrokerURL},
+					AutoReconnect: true,
+					ClientID:      fmt.Sprintf("alveoli-%s", uuid.New().String()),
+					CleanSession:  true,
+					KeepAlive:     30,
+					TLSConfig: &tls.Config{
+						ServerName:   config.GetString("subscriptions-mqtt-broker-sni"),
+						Certificates: []tls.Certificate{cert},
+						RootCAs:      pool,
+					},
+					OnConnect: func(c mqtt.Client) {
+						log.Printf("connected to mqtt broker: %s", mqttBrokerURL.String())
+					},
+					OnConnectionLost: func(c mqtt.Client, err error) {
+						log.Printf("connection lost to mqtt broker %s: %v", mqttBrokerURL.String(), err)
+					},
+				})
+				log.Printf("connecting to mqtt broker: %s", mqttBrokerURL.String())
+				if token := mqttClient.Connect(); token.Wait() {
+					if err := token.Error(); err != nil {
+						log.Panicf("failed to connect to mqtt broker: %v", err)
+					}
+				}
+			}
 
 			srv := handler.NewDefaultServer(
 				generated.NewExecutableSchema(
 					generated.Config{
 						Resolvers: resolvers.Root(
+							mqttClient,
 							waspClient,
 							vespiaryClient,
 							nestClient,
@@ -90,8 +135,6 @@ func main() {
 					},
 				},
 			})
-			srv.Use(extension.Introspection{})
-			srv.Use(extension.FixedComplexityLimit(3))
 
 			mux := http.NewServeMux()
 			mux.Handle("/graphql", srv)
@@ -120,6 +163,9 @@ func main() {
 	cmd.Flags().String("rpc-tls-certificate-authority-file", "", "x509 certificate authority used by RPC Server.")
 	cmd.Flags().String("rpc-tls-certificate-file", "", "x509 certificate used by RPC Server.")
 	cmd.Flags().String("rpc-tls-private-key-file", "", "Private key used by RPC Server.")
+
+	cmd.Flags().String("subscriptions-mqtt-broker", "broker.iot.cloud.vx-labs.net", "MQTT Broker to connect.")
+	cmd.Flags().String("subscriptions-mqtt-broker-sni", "broker.iot.cloud.vx-labs.net", "MQTT Broker server name to use in TLS handshale.")
 
 	cmd.Flags().String("auth0-client-domain", "", "Auth0 client domain.")
 	cmd.Flags().String("auth0-api-id", "", "Auth0 API ID.")
