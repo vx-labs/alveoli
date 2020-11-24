@@ -41,7 +41,7 @@ func (a *applicationResolver) Records(ctx context.Context, obj *vespiary.Applica
 	if userPattern != nil {
 		pattern = *userPattern
 	}
-	finalPattern := []byte(fmt.Sprintf("%s/%s/%s", authContext.AccountID, obj.ID, pattern))
+	finalPattern := []byte(fmt.Sprintf("_root/%s/%s/%s", authContext.AccountID, obj.ID, pattern))
 
 	stream, err := a.nest.GetTopics(ctx, &nest.GetTopicsRequest{
 		Pattern:       finalPattern,
@@ -69,7 +69,7 @@ func (a *applicationResolver) Topics(ctx context.Context, obj *vespiary.Applicat
 	if userPattern != nil {
 		pattern = *userPattern
 	}
-	finalPattern := []byte(fmt.Sprintf("%s/%s/%s", authContext.AccountID, obj.ID, pattern))
+	finalPattern := []byte(fmt.Sprintf("_root/%s/%s/%s", authContext.AccountID, obj.ID, pattern))
 	out, err := a.nest.ListTopics(ctx, &nest.ListTopicsRequest{
 		Pattern: finalPattern,
 	})

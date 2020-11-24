@@ -17,18 +17,18 @@ type topicResolver struct {
 }
 
 func (r *topicResolver) Name(ctx context.Context, obj *nest.TopicMetadata) (string, error) {
-	tokens := strings.SplitN(string(obj.Name), "/", 3)
-	if len(tokens) != 3 {
+	tokens := strings.SplitN(string(obj.Name), "/", 4)
+	if len(tokens) != 4 {
+		return "", errors.New("failed to extract name from topic")
+	}
+	return tokens[3], nil
+}
+func (r *topicResolver) ApplicationID(ctx context.Context, obj *nest.TopicMetadata) (string, error) {
+	tokens := strings.SplitN(string(obj.Name), "/", 4)
+	if len(tokens) != 4 {
 		return "", errors.New("failed to extract name from topic")
 	}
 	return tokens[2], nil
-}
-func (r *topicResolver) ApplicationID(ctx context.Context, obj *nest.TopicMetadata) (string, error) {
-	tokens := strings.SplitN(string(obj.Name), "/", 3)
-	if len(tokens) != 3 {
-		return "", errors.New("failed to extract name from topic")
-	}
-	return tokens[1], nil
 }
 func (a *topicResolver) Application(ctx context.Context, obj *nest.TopicMetadata) (*vespiary.Application, error) {
 	authContext := auth.Informations(ctx)

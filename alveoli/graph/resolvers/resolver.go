@@ -43,7 +43,7 @@ func (r *queryResolver) Sessions(ctx context.Context) ([]*wasp.SessionMetadatas,
 	}
 	filtered := make([]*wasp.SessionMetadatas, 0)
 	for _, sessionMetadatas := range out.SessionMetadatasList {
-		if strings.HasPrefix(sessionMetadatas.MountPoint, authContext.AccountID) {
+		if strings.HasPrefix(sessionMetadatas.MountPoint, fmt.Sprintf("_root/%s", authContext.AccountID)) {
 			filtered = append(filtered, sessionMetadatas)
 		}
 	}
@@ -77,7 +77,7 @@ func (r *queryResolver) Topics(ctx context.Context, userPattern *string) ([]*nes
 	if userPattern != nil {
 		pattern = *userPattern
 	}
-	finalPattern := []byte(fmt.Sprintf("%s/+/%s", authContext.AccountID, pattern))
+	finalPattern := []byte(fmt.Sprintf("_root/%s/+/%s", authContext.AccountID, pattern))
 	out, err := r.nest.ListTopics(ctx, &nest.ListTopicsRequest{
 		Pattern: finalPattern,
 	})

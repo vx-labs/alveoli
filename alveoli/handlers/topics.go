@@ -74,7 +74,7 @@ func (d *topics) List() func(w http.ResponseWriter, r *http.Request, ps httprout
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		authContext := auth.Informations(r.Context())
 		response, err := d.nest.ListTopics(r.Context(), &nest.ListTopicsRequest{
-			Pattern: []byte(fmt.Sprintf("%s/#", authContext.AccountID)),
+			Pattern: []byte(fmt.Sprintf("_root/%s/#", authContext.AccountID)),
 		})
 		if err != nil {
 			log.Print(err)
@@ -126,7 +126,7 @@ func (d *topics) Get() func(w http.ResponseWriter, r *http.Request, ps httproute
 			body.Pattern = "#"
 		}
 		stream, err := d.nest.GetTopics(r.Context(), &nest.GetTopicsRequest{
-			Pattern:       []byte(fmt.Sprintf("%s/%s", authContext.AccountID, body.Pattern)),
+			Pattern:       []byte(fmt.Sprintf("_root/%s/%s", authContext.AccountID, body.Pattern)),
 			FromTimestamp: fromTimestamp,
 		})
 		if err != nil {

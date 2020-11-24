@@ -16,18 +16,18 @@ type recordResolver struct {
 }
 
 func (r *recordResolver) TopicName(ctx context.Context, obj *nest.Record) (string, error) {
-	tokens := strings.SplitN(string(obj.Topic), "/", 3)
-	if len(tokens) != 3 {
+	tokens := strings.SplitN(string(obj.Topic), "/", 4)
+	if len(tokens) != 4 {
+		return "", errors.New("failed to extract name from topic")
+	}
+	return tokens[3], nil
+}
+func (r *recordResolver) ApplicationID(ctx context.Context, obj *nest.Record) (string, error) {
+	tokens := strings.SplitN(string(obj.Topic), "/", 4)
+	if len(tokens) != 4 {
 		return "", errors.New("failed to extract name from topic")
 	}
 	return tokens[2], nil
-}
-func (r *recordResolver) ApplicationID(ctx context.Context, obj *nest.Record) (string, error) {
-	tokens := strings.SplitN(string(obj.Topic), "/", 3)
-	if len(tokens) != 3 {
-		return "", errors.New("failed to extract name from topic")
-	}
-	return tokens[1], nil
 }
 func (a *recordResolver) Application(ctx context.Context, obj *nest.Record) (*vespiary.Application, error) {
 	authContext := auth.Informations(ctx)
