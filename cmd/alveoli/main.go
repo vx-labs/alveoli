@@ -91,6 +91,7 @@ func main() {
 				},
 			})
 			srv.Use(extension.Introspection{})
+			srv.Use(extension.FixedComplexityLimit(3))
 
 			mux := http.NewServeMux()
 			mux.Handle("/graphql", srv)
