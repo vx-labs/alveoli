@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/lru"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -26,9 +30,18 @@ import (
 	nest "github.com/vx-labs/nest/nest/api"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
 	wasp "github.com/vx-labs/wasp/v4/wasp/api"
+	"github.com/vx-labs/wasp/vaultacme"
+	"go.uber.org/zap"
 )
 
 func main() {
+	ctx := context.Background()
+	logConfig := zap.NewProductionConfig()
+	logger, err := logConfig.Build()
+	if err != nil {
+		panic(err)
+	}
+
 	config := viper.New()
 	config.SetEnvPrefix("alveoli")
 	config.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
@@ -89,11 +102,13 @@ func main() {
 					panic("failed to load tls system cert pool")
 				}
 				mqttClient = mqtt.NewClient(&mqtt.ClientOptions{
-					Servers:       []*url.URL{mqttBrokerURL},
-					AutoReconnect: true,
-					ClientID:      fmt.Sprintf("alveoli-%s", uuid.New().String()),
-					CleanSession:  true,
-					KeepAlive:     30,
+					Servers:        []*url.URL{mqttBrokerURL},
+					AutoReconnect:  true,
+					ClientID:       fmt.Sprintf("alveoli-%s", uuid.New().String()),
+					CleanSession:   true,
+					KeepAlive:      30,
+					PingTimeout:    20 * time.Second,
+					ConnectTimeout: 15 * time.Second,
 					TLSConfig: &tls.Config{
 						ServerName:   config.GetString("subscriptions-mqtt-broker-sni"),
 						Certificates: []tls.Certificate{cert},
@@ -113,8 +128,7 @@ func main() {
 					}
 				}
 			}
-
-			srv := handler.NewDefaultServer(
+			srv := handler.New(
 				generated.NewExecutableSchema(
 					generated.Config{
 						Resolvers: resolvers.Root(
@@ -126,18 +140,38 @@ func main() {
 					},
 				),
 			)
-			srv.AddTransport(transport.POST{})
+
 			srv.AddTransport(transport.Websocket{
 				KeepAlivePingInterval: 10 * time.Second,
+				InitFunc: func(ctx context.Context, initPayload transport.InitPayload) (context.Context, error) {
+					md, err := authProvider.Validate(ctx, initPayload.Authorization())
+					if err != nil {
+						log.Printf("websocket auth failed: %v", err)
+						return nil, err
+					}
+					log.Printf("websocket session started for account %s", md.AccountID)
+					return auth.StoreInformations(ctx, md), nil
+				},
 				Upgrader: websocket.Upgrader{
 					CheckOrigin: func(r *http.Request) bool {
 						return true
 					},
 				},
 			})
+			srv.AddTransport(transport.Options{})
+			srv.AddTransport(transport.GET{})
+			srv.AddTransport(transport.POST{})
+			srv.AddTransport(transport.MultipartForm{})
+
+			srv.SetQueryCache(lru.New(1000))
+
+			srv.Use(extension.Introspection{})
+			srv.Use(extension.AutomaticPersistedQuery{
+				Cache: lru.New(100),
+			})
 
 			mux := http.NewServeMux()
-			mux.Handle("/graphql", srv)
+			mux.Handle("/graphql", auth.Handler(authProvider, srv))
 			mux.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
 
 			corsHandler := cors.New(cors.Options{
@@ -154,8 +188,25 @@ func main() {
 				},
 				AllowCredentials: true,
 			})
-			port := fmt.Sprintf(":%d", config.GetInt("port"))
-			log.Fatal(http.ListenAndServe(port, corsHandler.Handler(&Logger{handler: authProvider.Handler(mux)})))
+			listenAddr := fmt.Sprintf(":%d", config.GetInt("port"))
+
+			if config.GetBool("use-vault") {
+				tlsConfig, err := vaultacme.GetConfig(ctx, config.GetString("tls-cn"), logger)
+				if err != nil {
+					logger.Fatal("failed to get TLS certificate from ACME", zap.Error(err))
+				}
+				listener, err := tls.Listen("tcp", listenAddr, tlsConfig)
+				if err != nil {
+					logger.Fatal("failed to listen", zap.Error(err))
+				}
+				log.Fatal(http.Serve(listener, corsHandler.Handler(&Logger{handler: mux})))
+			} else {
+				listener, err := net.Listen("tcp", listenAddr)
+				if err != nil {
+					logger.Fatal("failed to listen tcp", zap.Error(err))
+				}
+				log.Fatal(http.Serve(listener, corsHandler.Handler(&Logger{handler: mux})))
+			}
 		},
 	}
 	cmd.Flags().Bool("insecure", false, "Disable GRPC client-side TLS validation.")
@@ -173,6 +224,9 @@ func main() {
 	cmd.Flags().String("authentication-provider", "auth0", "How shall we authenticate user requests? Supported values are auth0 and static.")
 	cmd.Flags().String("authentication-provider-static-tenant", "vx:psk", "The default tenant to use when using static authentication provider.")
 	cmd.Flags().String("authentication-provider-static-account-id", "1", "The account-id to use when using static authentication provider.")
+	cmd.Flags().Bool("use-vault", false, "Use Hashicorp Vault to store private keys and certificates.")
+	cmd.Flags().String("tls-cn", "localhost", "Get ACME certificat for this Common Name.")
+
 	cmd.AddCommand(TLSHelper(config))
 
 	cmd.Execute()

@@ -51,6 +51,7 @@ job "alveoli" {
 
         data = <<EOH
 {{with secret "secret/data/vx/mqtt"}}
+LE_EMAIL="{{.Data.acme_email}}"
 ALVEOLI_AUTH0_CLIENT_DOMAIN="{{ .Data.auth0_client_domain }}"
 ALVEOLI_AUTH0_API_ID="{{ .Data.auth0_api_id }}"
 ALVEOLI_RPC_TLS_CERTIFICATE_FILE="{{ env "NOMAD_TASK_DIR" }}/cert.pem"
@@ -116,6 +117,10 @@ EOH
         }
 
         image = "${service_image}:${service_version}"
+        args = [
+          "--use-vault",
+          "--tls-cn", "api.iot.cloud.vx-labs.net",
+        ]
         force_pull = true
 
         port_map {
@@ -142,13 +147,6 @@ EOH
         tags = [
           "http",
           "${service_version}",
-          "traefik.enable=true",
-          "traefik.http.routers.api.rule=Host(`api.iot.cloud.vx-labs.net`)",
-          "traefik.http.routers.api.entrypoints=https",
-          "traefik.http.routers.api.service=alveoli",
-          "traefik.http.routers.api.tls",
-          "traefik.http.routers.api.tls.certresolver=le",
-
         ]
 
         check {

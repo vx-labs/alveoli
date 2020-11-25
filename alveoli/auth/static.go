@@ -1,24 +1,24 @@
 package auth
 
-import "net/http"
+import (
+	"context"
+)
 
 type static struct {
 	accountID string
 	tenant    string
 }
 
+func (l *static) Validate(ctx context.Context, token string) (UserMetadata, error) {
+	return UserMetadata{
+		Principal:       l.tenant,
+		Name:            "mocked static account",
+		AccountID:       l.accountID,
+		DeviceUsernames: []string{l.tenant},
+	}, nil
+}
 func (l *static) ResolveUserEmail(header string) (string, error) {
 	return "test@example.net", nil
-}
-func (l *static) Handler(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), UserMetadata{
-			Principal:       l.tenant,
-			Name:            "mocked static account",
-			AccountID:       l.accountID,
-			DeviceUsernames: []string{l.tenant},
-		})))
-	})
 }
 
 func Static(accountID, tenant string) Provider {

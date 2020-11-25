@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,26 +151,38 @@ type auth0Wrapper struct {
 	vespiaryClient vespiary.VespiaryClient
 }
 
-func (l *auth0Wrapper) Handler(h http.Handler) http.Handler {
-	jwtMiddlware := auth0Middleware(l.domain, l.apiID)
-	return jwtMiddlware.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenant, err := l.getTenant(r)
-		if err != nil || tenant == "" {
-			w.WriteHeader(403)
-			w.Write([]byte(`{"message": "permission denied", "status_code": 403, "reason": "` + err.Error() + `"}`))
-			return
+func (l *auth0Wrapper) Validate(ctx context.Context, token string) (UserMetadata, error) {
+	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		// Verify 'aud' claim
+		aud := l.apiID
+		checkAud := token.Claims.(jwt.MapClaims).VerifyAudience(aud, false)
+		if !checkAud {
+			return token, errors.New("Invalid audience")
 		}
-		md := UserMetadata{Principal: tenant}
-		out, err := l.vespiaryClient.GetAccountByPrincipal(r.Context(), &vespiary.GetAccountByPrincipalRequest{
-			Principal: tenant,
-		})
-		if err == nil {
-			md.AccountID = out.Account.ID
-			md.Name = out.Account.Name
-			md.DeviceUsernames = out.Account.DeviceUsernames
+		// Verify 'iss' claim
+		iss := fmt.Sprintf("https://%s/", l.domain)
+		checkIss := token.Claims.(jwt.MapClaims).VerifyIssuer(iss, false)
+		if !checkIss {
+			return token, errors.New("Invalid issuer")
 		}
-		h.ServeHTTP(w, r.WithContext(storeInformations(r.Context(), md)))
-	}))
+		cert, err := getPemCert(iss, token)
+		if err != nil {
+			return nil, err
+		}
+		return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
+	})
+	if err != nil {
+		return UserMetadata{}, err
+	}
+	claim := parsedToken.Claims.(jwt.MapClaims)
+	tenant := claim["sub"].(string)
+	out, err := l.vespiaryClient.GetAccountByPrincipal(ctx, &vespiary.GetAccountByPrincipalRequest{
+		Principal: tenant,
+	})
+	if err != nil {
+		return UserMetadata{}, err
+	}
+	return UserMetadata{Principal: tenant, AccountID: out.Account.ID, Name: out.Account.Name}, nil
 }
 
 func Auth0(domain, apiId string, vespiaryClient vespiary.VespiaryClient) Provider {
