@@ -21,6 +21,7 @@ require (
 	github.com/vx-labs/vespiary v1.2.5
 	github.com/vx-labs/wasp v1.7.6
 	github.com/vx-labs/wasp/v4 v4.0.1
+	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b // indirect
 	google.golang.org/grpc v1.33.2
 )

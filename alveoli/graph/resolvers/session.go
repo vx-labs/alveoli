@@ -27,6 +27,17 @@ func (s *sessionResolver) ClientID(ctx context.Context, obj *wasp.SessionMetadat
 	return string(obj.ClientID), nil
 }
 func (s *sessionResolver) ApplicationID(ctx context.Context, obj *wasp.SessionMetadatas) (string, error) {
+	tokens := strings.SplitN(obj.MountPoint, "/", 3)
+	if len(tokens) != 3 {
+		return "", errors.New("failed to find applicationeId in session id")
+	}
+	return tokens[2], nil
+}
+func (s *sessionResolver) ConnectedAt(ctx context.Context, obj *wasp.SessionMetadatas) (*time.Time, error) {
+	t := time.Unix(0, obj.ConnectedAt)
+	return &t, nil
+}
+func (s *sessionResolver) ApplicationProfileID(ctx context.Context, obj *wasp.SessionMetadatas) (string, error) {
 	tokens := strings.SplitN(obj.SessionID, "/", 2)
 	if len(tokens) != 2 {
 		return "", errors.New("failed to find applicationProfileId in session id")
@@ -62,16 +73,4 @@ func (a *sessionResolver) ApplicationProfile(ctx context.Context, obj *wasp.Sess
 		return nil, err
 	}
 	return out.ApplicationProfile, nil
-}
-
-func (s *sessionResolver) ApplicationProfileID(ctx context.Context, obj *wasp.SessionMetadatas) (string, error) {
-	tokens := strings.SplitN(obj.MountPoint, "/", 3)
-	if len(tokens) != 3 {
-		return "", errors.New("failed to find applicationeId in session id")
-	}
-	return tokens[2], nil
-}
-func (s *sessionResolver) ConnectedAt(ctx context.Context, obj *wasp.SessionMetadatas) (*time.Time, error) {
-	t := time.Unix(0, obj.ConnectedAt)
-	return &t, nil
 }

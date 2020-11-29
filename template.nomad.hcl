@@ -147,6 +147,12 @@ EOH
         tags = [
           "http",
           "${service_version}",
+          "traefik.enable=true",
+          "traefik.tcp.routers.apitls.rule=HostSNI(`api.iot.cloud.vx-labs.net`)",
+          "traefik.tcp.routers.apitls.entrypoints=https",
+          "traefik.tcp.routers.apitls.service=alveoli",
+          "traefik.tcp.routers.apitls.tls",
+          "traefik.tcp.routers.apitls.tls.passthrough=true",
         ]
 
         check {

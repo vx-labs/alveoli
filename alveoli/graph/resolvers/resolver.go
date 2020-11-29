@@ -235,10 +235,12 @@ func (s *subscriptionResolver) AuditEvents(ctx context.Context) (<-chan *model.A
 			}
 		case "session_connected":
 			ev.Type = model.AuditEventTypeSessionConnected
-			tokens := strings.Split(input.Attributes["session_id"].(string), "/")
 			ev.Payload = model.SessionConnectedEvent{
-				ID:       tokens[len(tokens)-1],
-				ClientID: input.Attributes["client_id"].(string),
+				Session: &wasp.SessionMetadatas{
+					SessionID:  input.Attributes["session_id"].(string),
+					MountPoint: input.Attributes["mountpoint"].(string),
+					ClientID:   input.Attributes["client_id"].(string),
+				},
 			}
 		case "session_disconnected":
 			ev.Type = model.AuditEventTypeSessionDisconnected

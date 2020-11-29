@@ -143,8 +143,7 @@ type ComplexityRoot struct {
 	}
 
 	SessionConnectedEvent struct {
-		ClientID func(childComplexity int) int
-		ID       func(childComplexity int) int
+		Session func(childComplexity int) int
 	}
 
 	SessionDisconnectedEvent struct {
@@ -591,19 +590,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Session.ID(childComplexity), true
 
-	case "SessionConnectedEvent.clientId":
-		if e.complexity.SessionConnectedEvent.ClientID == nil {
+	case "SessionConnectedEvent.session":
+		if e.complexity.SessionConnectedEvent.Session == nil {
 			break
 		}
 
-		return e.complexity.SessionConnectedEvent.ClientID(childComplexity), true
-
-	case "SessionConnectedEvent.id":
-		if e.complexity.SessionConnectedEvent.ID == nil {
-			break
-		}
-
-		return e.complexity.SessionConnectedEvent.ID(childComplexity), true
+		return e.complexity.SessionConnectedEvent.Session(childComplexity), true
 
 	case "SessionDisconnectedEvent.id":
 		if e.complexity.SessionDisconnectedEvent.ID == nil {
@@ -858,8 +850,7 @@ type ApplicationProfileDeletedEvent {
   id: ID!
 }
 type SessionConnectedEvent {
-  id: ID!
-  clientId: String!
+  session: Session!
 }
 type SessionDisconnectedEvent {
   id: ID!
@@ -2753,7 +2744,7 @@ func (ec *executionContext) _Session_connectedAt(ctx context.Context, field grap
 	return ec.marshalNTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _SessionConnectedEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionConnectedEvent) (ret graphql.Marshaler) {
+func (ec *executionContext) _SessionConnectedEvent_session(ctx context.Context, field graphql.CollectedField, obj *model.SessionConnectedEvent) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -2771,7 +2762,7 @@ func (ec *executionContext) _SessionConnectedEvent_id(ctx context.Context, field
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.ID, nil
+		return obj.Session, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2783,44 +2774,9 @@ func (ec *executionContext) _SessionConnectedEvent_id(ctx context.Context, field
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*api2.SessionMetadatas)
 	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _SessionConnectedEvent_clientId(ctx context.Context, field graphql.CollectedField, obj *model.SessionConnectedEvent) (ret graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:     "SessionConnectedEvent",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   false,
-		IsResolver: false,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ClientID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNSession2ᚖgithubᚗcomᚋvxᚑlabsᚋwaspᚋv4ᚋwaspᚋapiᚐSessionMetadatas(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _SessionDisconnectedEvent_id(ctx context.Context, field graphql.CollectedField, obj *model.SessionDisconnectedEvent) (ret graphql.Marshaler) {
@@ -5175,13 +5131,8 @@ func (ec *executionContext) _SessionConnectedEvent(ctx context.Context, sel ast.
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("SessionConnectedEvent")
-		case "id":
-			out.Values[i] = ec._SessionConnectedEvent_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "clientId":
-			out.Values[i] = ec._SessionConnectedEvent_clientId(ctx, field, obj)
+		case "session":
+			out.Values[i] = ec._SessionConnectedEvent_session(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -5887,6 +5838,16 @@ func (ec *executionContext) marshalNSession2ᚕᚖgithubᚗcomᚋvxᚑlabsᚋwas
 	}
 	wg.Wait()
 	return ret
+}
+
+func (ec *executionContext) marshalNSession2ᚖgithubᚗcomᚋvxᚑlabsᚋwaspᚋv4ᚋwaspᚋapiᚐSessionMetadatas(ctx context.Context, sel ast.SelectionSet, v *api2.SessionMetadatas) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	return ec._Session(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {

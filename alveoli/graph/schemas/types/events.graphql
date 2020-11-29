@@ -19,8 +19,7 @@ type ApplicationProfileDeletedEvent {
   id: ID!
 }
 type SessionConnectedEvent {
-  id: ID!
-  clientId: String!
+  session: Session!
 }
 type SessionDisconnectedEvent {
   id: ID!

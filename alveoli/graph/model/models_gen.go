@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/vx-labs/vespiary/vespiary/api"
+	api1 "github.com/vx-labs/wasp/v4/wasp/api"
 )
 
 type AuditEventPayload interface {
@@ -54,8 +55,7 @@ type CreateApplicationProfileOutput struct {
 }
 
 type SessionConnectedEvent struct {
-	ID       string `json:"id"`
-	ClientID string `json:"clientId"`
+	Session *api1.SessionMetadatas `json:"session"`
 }
 
 func (SessionConnectedEvent) IsAuditEventPayload() {}
