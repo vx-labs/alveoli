@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
+	jwtmiddleware "github.com/auth0/go-jwt-middleware"
 	"github.com/julienschmidt/httprouter"
 	"github.com/vx-labs/alveoli/alveoli/auth"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
@@ -15,7 +17,9 @@ func registerAccounts(router *httprouter.Router, vespiaryClient vespiary.Vespiar
 		vespiary:     vespiaryClient,
 		authProvider: authProvider,
 	}
-	router.GET("/account/info", auth.RequireAccountCreated(accountHandler.Informations()))
+	router.GET("/account/info", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		auth.Handler(authProvider, accountHandler.Informations()).ServeHTTP(w, r)
+	})
 	router.POST("/account/", accountHandler.Create())
 }
 
@@ -29,8 +33,8 @@ type accounts struct {
 	authProvider auth.Provider
 }
 
-func (d *accounts) Informations() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (d *accounts) Informations() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authContext := auth.Informations(r.Context())
 		d.vespiary.GetAccountByPrincipal(r.Context(), &vespiary.GetAccountByPrincipalRequest{
 			Principal: authContext.Principal,
@@ -40,12 +44,26 @@ func (d *accounts) Informations() func(w http.ResponseWriter, r *http.Request, p
 			ID:        authContext.AccountID,
 			Usernames: authContext.DeviceUsernames,
 		})
-	}
+	})
 }
 func (d *accounts) Create() func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		authContext := auth.Informations(r.Context())
-		if authContext.AccountID != "" {
+		token, err := jwtmiddleware.FromAuthHeader(r)
+		if token == "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"status_code": 401, "message": "missing or invalid credentials","reason": "token is empty"}`))
+			return
+		}
+		tenant, err := d.authProvider.Authenticate(r.Context(), token)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, `{"status_code": 403, "message": "authentication failed","reason": "%s"}`, err.Error())
+			return
+		}
+		_, err = d.vespiary.GetAccountByPrincipal(r.Context(), &vespiary.GetAccountByPrincipalRequest{
+			Principal: tenant,
+		})
+		if err == nil {
 			w.WriteHeader(http.StatusConflict)
 			w.Write([]byte(`{"status_code": 409, "message": "account already created"}`))
 			return
@@ -60,7 +78,7 @@ func (d *accounts) Create() func(w http.ResponseWriter, r *http.Request, ps http
 		out, err := d.vespiary.CreateAccount(r.Context(), &vespiary.CreateAccountRequest{
 			Name:            userEmail,
 			DeviceUsernames: []string{userEmail},
-			Principals:      []string{authContext.Principal},
+			Principals:      []string{tenant},
 		})
 		if err != nil {
 			log.Print(err)

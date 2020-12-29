@@ -25,6 +25,7 @@ type UserMetadata struct {
 type Provider interface {
 	ResolveUserEmail(header string) (string, error)
 	Validate(ctx context.Context, token string) (UserMetadata, error)
+	Authenticate(ctx context.Context, token string) (string, error)
 }
 
 func StoreInformations(ctx context.Context, md UserMetadata) context.Context {

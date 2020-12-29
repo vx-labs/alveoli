@@ -9,6 +9,9 @@ type static struct {
 	tenant    string
 }
 
+func (l *static) Authenticate(ctx context.Context, token string) (string, error) {
+	return l.tenant, nil
+}
 func (l *static) Validate(ctx context.Context, token string) (UserMetadata, error) {
 	return UserMetadata{
 		Principal:       l.tenant,

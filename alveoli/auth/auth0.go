@@ -151,7 +151,7 @@ type auth0Wrapper struct {
 	vespiaryClient vespiary.VespiaryClient
 }
 
-func (l *auth0Wrapper) Validate(ctx context.Context, token string) (UserMetadata, error) {
+func (l *auth0Wrapper) Authenticate(ctx context.Context, token string) (string, error) {
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		// Verify 'aud' claim
 		aud := l.apiID
@@ -172,10 +172,14 @@ func (l *auth0Wrapper) Validate(ctx context.Context, token string) (UserMetadata
 		return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
 	})
 	if err != nil {
-		return UserMetadata{}, err
+		return "", err
 	}
 	claim := parsedToken.Claims.(jwt.MapClaims)
 	tenant := claim["sub"].(string)
+	return tenant, nil
+}
+func (l *auth0Wrapper) Validate(ctx context.Context, token string) (UserMetadata, error) {
+	tenant, err := l.Authenticate(ctx, token)
 	out, err := l.vespiaryClient.GetAccountByPrincipal(ctx, &vespiary.GetAccountByPrincipalRequest{
 		Principal: tenant,
 	})

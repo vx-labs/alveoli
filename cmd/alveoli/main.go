@@ -20,12 +20,14 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/vx-labs/alveoli/alveoli/auth"
 	"github.com/vx-labs/alveoli/alveoli/graph/generated"
 	"github.com/vx-labs/alveoli/alveoli/graph/resolvers"
+	"github.com/vx-labs/alveoli/alveoli/handlers"
 	"github.com/vx-labs/alveoli/alveoli/rpc"
 	nest "github.com/vx-labs/nest/nest/api"
 	vespiary "github.com/vx-labs/vespiary/vespiary/api"
@@ -171,6 +173,9 @@ func main() {
 			})
 
 			mux := http.NewServeMux()
+			router := httprouter.New()
+			handlers.Register(router, authProvider, vespiaryClient)
+			mux.Handle("/account/", router)
 			mux.Handle("/graphql", auth.Handler(authProvider, srv))
 			mux.Handle("/", playground.Handler("GraphQL playground", "/graphql"))
 
