@@ -62,15 +62,15 @@ func main() {
 				TLSCertificateAuthorityPath: config.GetString("rpc-tls-certificate-authority-file"),
 			})
 
-			authConn, err := rpcDialer("auth.iot.cloud.vx-labs.net:443")
+			authConn, err := rpcDialer(config.GetString("vespiary-grpc-address"))
 			if err != nil {
 				panic(err)
 			}
-			brokerConn, err := rpcDialer("rpc.iot.cloud.vx-labs.net:443")
+			brokerConn, err := rpcDialer(config.GetString("wasp-grpc-address"))
 			if err != nil {
 				panic(err)
 			}
-			nestConn, err := rpcDialer("messages.iot.cloud.vx-labs.net:443")
+			nestConn, err := rpcDialer(config.GetString("nest-grpc-address"))
 			if err != nil {
 				panic(err)
 			}
@@ -231,6 +231,10 @@ func main() {
 	cmd.Flags().String("authentication-provider-static-account-id", "1", "The account-id to use when using static authentication provider.")
 	cmd.Flags().Bool("use-vault", false, "Use Hashicorp Vault to store private keys and certificates.")
 	cmd.Flags().String("tls-cn", "localhost", "Get ACME certificat for this Common Name.")
+
+	cmd.Flags().String("vespiary-grpc-address", "auth.iot.cloud.vx-labs.net:443", "auth service endpoint")
+	cmd.Flags().String("nest-grpc-address", "messages.iot.cloud.vx-labs.net:443", "auth service endpoint")
+	cmd.Flags().String("wasp-grpc-address", "rpc.iot.cloud.vx-labs.net:443", "auth service endpoint")
 
 	cmd.AddCommand(TLSHelper(config))
 

@@ -4,6 +4,7 @@ package resolvers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -183,6 +184,9 @@ type auditEvent struct {
 }
 
 func (s *subscriptionResolver) AuditEvents(ctx context.Context) (<-chan *model.AuditEvent, error) {
+	if s.mqtt == nil {
+		return nil, errors.New("subscriptions not available")
+	}
 	authContext := auth.Informations(ctx)
 	topic := fmt.Sprintf("%s/$SYS/_audit/events", authContext.AccountID)
 	applicationsTopic := fmt.Sprintf("%s/+/$SYS/_audit/events", authContext.AccountID)
