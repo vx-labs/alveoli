@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
+
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/lru"
@@ -55,6 +57,13 @@ func main() {
 		},
 		Run: func(cmd *cobra.Command, _ []string) {
 
+			if nrLicenseKey := config.GetString("newrelic-license-key"); nrLicenseKey != "" {
+				newrelic.NewApplication(
+					newrelic.ConfigAppName("alveoli"),
+					newrelic.ConfigLicense(nrLicenseKey),
+					newrelic.ConfigDistributedTracerEnabled(true),
+				)
+			}
 			rpcDialer := rpc.GRPCDialer(rpc.ClientConfig{
 				InsecureSkipVerify:          config.GetBool("insecure"),
 				TLSCertificatePath:          config.GetString("rpc-tls-certificate-file"),

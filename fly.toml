@@ -1,0 +1,29 @@
+app = "alveoli"
+
+kill_signal = "SIGINT"
+kill_timeout = 5
+
+[env]
+  ALVEOLI_INSECURE="true"
+  ALVEOLI_VESPIARY_GRPC_ADDRESS="global.vespiary.internal:3899"
+  ALVEOLI_WASP_GRPC_ADDRESS="global.wasp.internal:1899"
+  ALVEOLI_NEST_GRPC_ADDRESS="global.nest.internal:2899"
+
+[experimental]
+  private_network = true
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [services.concurrency]
+    hard_limit = 100000
+    soft_limit = 10000
+
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = "443"
+
+  [[services.tcp_checks]]
+    interval = 10000
+    timeout = 2000
