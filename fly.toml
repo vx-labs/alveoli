@@ -5,9 +5,9 @@ kill_timeout = 5
 
 [env]
   ALVEOLI_INSECURE="true"
-  ALVEOLI_VESPIARY_GRPC_ADDRESS="global.vespiary.internal:3899"
-  ALVEOLI_WASP_GRPC_ADDRESS="global.wasp.internal:1899"
-  ALVEOLI_NEST_GRPC_ADDRESS="global.nest.internal:2899"
+  ALVEOLI_VESPIARY_GRPC_ADDRESS="vespiary.internal:3899"
+  ALVEOLI_WASP_GRPC_ADDRESS="wasp.internal:1899"
+  ALVEOLI_NEST_GRPC_ADDRESS="nest.internal:2899"
 
 [experimental]
   private_network = true
