@@ -3,13 +3,9 @@ package resolvers
 //go:generate go run github.com/99designs/gqlgen --verbose
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"strings"
 
-	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/vx-labs/alveoli/alveoli/auth"
 	"github.com/vx-labs/alveoli/alveoli/graph/generated"
 	"github.com/vx-labs/alveoli/alveoli/graph/model"
@@ -22,15 +18,13 @@ type resolver struct {
 	nest     nest.MessagesClient
 	wasp     wasp.MQTTClient
 	vespiary vespiary.VespiaryClient
-	mqtt     mqtt.Client
 }
 
-func Root(mqttClient mqtt.Client, waspClient wasp.MQTTClient, vespiaryClient vespiary.VespiaryClient, nestClient nest.MessagesClient) generated.ResolverRoot {
+func Root(waspClient wasp.MQTTClient, vespiaryClient vespiary.VespiaryClient, nestClient nest.MessagesClient) generated.ResolverRoot {
 	return &resolver{
 		nest:     nestClient,
 		wasp:     waspClient,
 		vespiary: vespiaryClient,
-		mqtt:     mqttClient,
 	}
 }
 
@@ -183,99 +177,100 @@ type auditEvent struct {
 	Attributes map[string]interface{} `json:"attributes,omitempty"`
 }
 
-func (s *subscriptionResolver) AuditEvents(ctx context.Context) (<-chan *model.AuditEvent, error) {
-	if s.mqtt == nil {
-		return nil, errors.New("subscriptions not available")
-	}
-	authContext := auth.Informations(ctx)
-	topic := fmt.Sprintf("%s/$SYS/_audit/events", authContext.AccountID)
-	applicationsTopic := fmt.Sprintf("%s/+/$SYS/_audit/events", authContext.AccountID)
-	ch := make(chan *model.AuditEvent)
-	token := s.mqtt.SubscribeMultiple(map[string]byte{
-		topic:             2,
-		applicationsTopic: 2,
-	}, func(c mqtt.Client, m mqtt.Message) {
-		input := auditEvent{}
-		err := json.Unmarshal(m.Payload(), &input)
-		if err != nil {
-			log.Print(err)
-			return
-		}
-		ev := &model.AuditEvent{}
-		switch input.Kind {
-		case "application_created":
-			out, err := s.vespiary.GetApplicationByAccountID(ctx, &vespiary.GetApplicationByAccountIDRequest{
-				AccountID: authContext.AccountID,
-				Id:        input.Attributes["application_id"].(string),
-			})
-			if err != nil {
-				return
-			}
-			ev.Type = model.AuditEventTypeApplicationCreated
-			ev.Payload = model.ApplicationCreatedEvent{
-				Application: out.Application,
-			}
-		case "application_deleted":
-			ev.Type = model.AuditEventTypeApplicationDeleted
-			ev.Payload = model.ApplicationDeletedEvent{
-				ID: input.Attributes["application_id"].(string),
-			}
-		case "application_profile_created":
-			ev.Type = model.AuditEventTypeApplicationProfileCreated
-			out, err := s.vespiary.GetApplicationProfileByAccountID(ctx, &vespiary.GetApplicationProfileByAccountIDRequest{
-				AccountID: authContext.AccountID,
-				ID:        input.Attributes["application_profile_id"].(string),
-			})
-			if err != nil {
-				return
-			}
-			ev.Payload = model.ApplicationProfileCreatedEvent{
-				ApplicationProfile: out.ApplicationProfile,
-			}
-		case "application_profile_deleted":
-			ev.Type = model.AuditEventTypeApplicationProfileDeleted
-			ev.Payload = model.ApplicationProfileDeletedEvent{
-				ID: input.Attributes["application_profile_id"].(string),
-			}
-		case "session_connected":
-			ev.Type = model.AuditEventTypeSessionConnected
-			ev.Payload = model.SessionConnectedEvent{
-				Session: &wasp.SessionMetadatas{
-					SessionID:  input.Attributes["session_id"].(string),
-					MountPoint: input.Attributes["mountpoint"].(string),
-					ClientID:   input.Attributes["client_id"].(string),
-				},
-			}
-		case "session_disconnected":
-			ev.Type = model.AuditEventTypeSessionDisconnected
-			tokens := strings.Split(input.Attributes["session_id"].(string), "/")
-			ev.Payload = model.SessionDisconnectedEvent{
-				ID: tokens[len(tokens)-1],
-			}
-		}
+// func (s *subscriptionResolver) AuditEvents(ctx context.Context) (<-chan *model.AuditEvent, error) {
+// 	if s.mqtt == nil {
+// 		return nil, errors.New("subscriptions not available")
+// 	}
+// 	authContext := auth.Informations(ctx)
+// 	topic := fmt.Sprintf("%s/$SYS/_audit/events", authContext.AccountID)
+// 	applicationsTopic := fmt.Sprintf("%s/+/$SYS/_audit/events", authContext.AccountID)
+// 	ch := make(chan *model.AuditEvent)
+// 	token := s.mqtt.SubscribeMultiple(map[string]byte{
+// 		topic:             2,
+// 		applicationsTopic: 2,
+// 	}, func(c mqtt.Client, m mqtt.Message) {
+// 		input := auditEvent{}
+// 		err := json.Unmarshal(m.Payload(), &input)
+// 		if err != nil {
+// 			log.Print(err)
+// 			return
+// 		}
+// 		ev := &model.AuditEvent{}
+// 		switch input.Kind {
+// 		case "application_created":
+// 			out, err := s.vespiary.GetApplicationByAccountID(ctx, &vespiary.GetApplicationByAccountIDRequest{
+// 				AccountID: authContext.AccountID,
+// 				Id:        input.Attributes["application_id"].(string),
+// 			})
+// 			if err != nil {
+// 				return
+// 			}
+// 			ev.Type = model.AuditEventTypeApplicationCreated
+// 			ev.Payload = model.ApplicationCreatedEvent{
+// 				Application: out.Application,
+// 			}
+// 		case "application_deleted":
+// 			ev.Type = model.AuditEventTypeApplicationDeleted
+// 			ev.Payload = model.ApplicationDeletedEvent{
+// 				ID: input.Attributes["application_id"].(string),
+// 			}
+// 		case "application_profile_created":
+// 			ev.Type = model.AuditEventTypeApplicationProfileCreated
+// 			out, err := s.vespiary.GetApplicationProfileByAccountID(ctx, &vespiary.GetApplicationProfileByAccountIDRequest{
+// 				AccountID: authContext.AccountID,
+// 				ID:        input.Attributes["application_profile_id"].(string),
+// 			})
+// 			if err != nil {
+// 				return
+// 			}
+// 			ev.Payload = model.ApplicationProfileCreatedEvent{
+// 				ApplicationProfile: out.ApplicationProfile,
+// 			}
+// 		case "application_profile_deleted":
+// 			ev.Type = model.AuditEventTypeApplicationProfileDeleted
+// 			ev.Payload = model.ApplicationProfileDeletedEvent{
+// 				ID: input.Attributes["application_profile_id"].(string),
+// 			}
+// 		case "session_connected":
+// 			ev.Type = model.AuditEventTypeSessionConnected
+// 			ev.Payload = model.SessionConnectedEvent{
+// 				Session: &wasp.SessionMetadatas{
+// 					SessionID:  input.Attributes["session_id"].(string),
+// 					MountPoint: input.Attributes["mountpoint"].(string),
+// 					ClientID:   input.Attributes["client_id"].(string),
+// 				},
+// 			}
+// 		case "session_disconnected":
+// 			ev.Type = model.AuditEventTypeSessionDisconnected
+// 			tokens := strings.Split(input.Attributes["session_id"].(string), "/")
+// 			ev.Payload = model.SessionDisconnectedEvent{
+// 				ID: tokens[len(tokens)-1],
+// 			}
+// 		}
 
-		select {
-		case <-ctx.Done():
-			return
-		case ch <- ev:
-			return
-		}
-	})
-	go func() {
-		<-ctx.Done()
-		token := s.mqtt.Unsubscribe(topic)
-		token.Wait()
-		close(ch)
-	}()
-	token.Wait()
-	if err := token.Error(); err != nil {
-		close(ch)
-		return nil, err
-	}
-	return ch, nil
-}
-func (r *resolver) Mutation() generated.MutationResolver         { return &mutationResolver{r} }
-func (r *resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
+// 		select {
+// 		case <-ctx.Done():
+// 			return
+// 		case ch <- ev:
+// 			return
+// 		}
+// 	})
+// 	go func() {
+// 		<-ctx.Done()
+// 		token := s.mqtt.Unsubscribe(topic)
+// 		token.Wait()
+// 		close(ch)
+// 	}()
+// 	token.Wait()
+// 	if err := token.Error(); err != nil {
+// 		close(ch)
+// 		return nil, err
+// 	}
+// 	return ch, nil
+// }
+func (r *resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
+
+// func (r *resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
 
 func (r *resolver) ApplicationProfile() generated.ApplicationProfileResolver {
 	return &applicationProfileResolver{r}

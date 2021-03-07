@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -47,7 +46,6 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Record() RecordResolver
 	Session() SessionResolver
-	Subscription() SubscriptionResolver
 	Topic() TopicResolver
 }
 
@@ -150,10 +148,6 @@ type ComplexityRoot struct {
 		ID func(childComplexity int) int
 	}
 
-	Subscription struct {
-		AuditEvents func(childComplexity int) int
-	}
-
 	Topic struct {
 		Application        func(childComplexity int) int
 		ApplicationID      func(childComplexity int) int
@@ -210,9 +204,6 @@ type SessionResolver interface {
 	ApplicationProfileID(ctx context.Context, obj *api2.SessionMetadatas) (string, error)
 	ApplicationProfile(ctx context.Context, obj *api2.SessionMetadatas) (*api.ApplicationProfile, error)
 	ConnectedAt(ctx context.Context, obj *api2.SessionMetadatas) (*time.Time, error)
-}
-type SubscriptionResolver interface {
-	AuditEvents(ctx context.Context) (<-chan *model.AuditEvent, error)
 }
 type TopicResolver interface {
 	Name(ctx context.Context, obj *api1.TopicMetadata) (string, error)
@@ -604,13 +595,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SessionDisconnectedEvent.ID(childComplexity), true
 
-	case "Subscription.auditEvents":
-		if e.complexity.Subscription.AuditEvents == nil {
-			break
-		}
-
-		return e.complexity.Subscription.AuditEvents(childComplexity), true
-
 	case "Topic.application":
 		if e.complexity.Topic.Application == nil {
 			break
@@ -705,23 +689,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 				Data: buf.Bytes(),
 			}
 		}
-	case ast.Subscription:
-		next := ec._Subscription(ctx, rc.Operation.SelectionSet)
-
-		var buf bytes.Buffer
-		return func(ctx context.Context) *graphql.Response {
-			buf.Reset()
-			data := next()
-
-			if data == nil {
-				return nil
-			}
-			data.MarshalGQL(&buf)
-
-			return &graphql.Response{
-				Data: buf.Bytes(),
-			}
-		}
 
 	default:
 		return graphql.OneShot(graphql.ErrorResponse(ctx, "unsupported GraphQL operation"))
@@ -778,9 +745,6 @@ directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITI
 `, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/scalars.graphql", Input: `scalar Time
 `, BuiltIn: false},
-	{Name: "alveoli/graph/schemas/subscription.graphql", Input: `type Subscription {
-  auditEvents: AuditEvent!
-}`, BuiltIn: false},
 	{Name: "alveoli/graph/schemas/types/account.graphql", Input: `type Account @goModel(model: "github.com/vx-labs/vespiary/vespiary/api.Account"){
   id: String!
   name: String!
@@ -2812,51 +2776,6 @@ func (ec *executionContext) _SessionDisconnectedEvent_id(ctx context.Context, fi
 	res := resTmp.(string)
 	fc.Result = res
 	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Subscription_auditEvents(ctx context.Context, field graphql.CollectedField) (ret func() graphql.Marshaler) {
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = nil
-		}
-	}()
-	fc := &graphql.FieldContext{
-		Object:     "Subscription",
-		Field:      field,
-		Args:       nil,
-		IsMethod:   true,
-		IsResolver: true,
-	}
-
-	ctx = graphql.WithFieldContext(ctx, fc)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().AuditEvents(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return nil
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return nil
-	}
-	return func() graphql.Marshaler {
-		res, ok := <-resTmp.(<-chan *model.AuditEvent)
-		if !ok {
-			return nil
-		}
-		return graphql.WriterFunc(func(w io.Writer) {
-			w.Write([]byte{'{'})
-			graphql.MarshalString(field.Alias).MarshalGQL(w)
-			w.Write([]byte{':'})
-			ec.marshalNAuditEvent2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEvent(ctx, field.Selections, res).MarshalGQL(w)
-			w.Write([]byte{'}'})
-		})
-	}
 }
 
 func (ec *executionContext) _Topic_name(ctx context.Context, field graphql.CollectedField, obj *api1.TopicMetadata) (ret graphql.Marshaler) {
@@ -5174,26 +5093,6 @@ func (ec *executionContext) _SessionDisconnectedEvent(ctx context.Context, sel a
 	return out
 }
 
-var subscriptionImplementors = []string{"Subscription"}
-
-func (ec *executionContext) _Subscription(ctx context.Context, sel ast.SelectionSet) func() graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, subscriptionImplementors)
-	ctx = graphql.WithFieldContext(ctx, &graphql.FieldContext{
-		Object: "Subscription",
-	})
-	if len(fields) != 1 {
-		ec.Errorf(ctx, "must subscribe to exactly one stream")
-		return nil
-	}
-
-	switch fields[0].Name {
-	case "auditEvents":
-		return ec._Subscription_auditEvents(ctx, fields[0])
-	default:
-		panic("unknown field " + strconv.Quote(fields[0].Name))
-	}
-}
-
 var topicImplementors = []string{"Topic"}
 
 func (ec *executionContext) _Topic(ctx context.Context, sel ast.SelectionSet, obj *api1.TopicMetadata) graphql.Marshaler {
@@ -5675,20 +5574,6 @@ func (ec *executionContext) marshalNApplicationProfile2ᚖgithubᚗcomᚋvxᚑla
 		return graphql.Null
 	}
 	return ec._ApplicationProfile(ctx, sel, v)
-}
-
-func (ec *executionContext) marshalNAuditEvent2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEvent(ctx context.Context, sel ast.SelectionSet, v model.AuditEvent) graphql.Marshaler {
-	return ec._AuditEvent(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNAuditEvent2ᚖgithubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEvent(ctx context.Context, sel ast.SelectionSet, v *model.AuditEvent) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	return ec._AuditEvent(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAuditEventPayload2githubᚗcomᚋvxᚑlabsᚋalveoliᚋalveoliᚋgraphᚋmodelᚐAuditEventPayload(ctx context.Context, sel ast.SelectionSet, v model.AuditEventPayload) graphql.Marshaler {

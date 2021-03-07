@@ -143,7 +143,6 @@ func main() {
 				generated.NewExecutableSchema(
 					generated.Config{
 						Resolvers: resolvers.Root(
-							mqttClient,
 							waspClient,
 							vespiaryClient,
 							nestClient,
