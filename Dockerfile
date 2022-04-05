@@ -10,7 +10,7 @@ ARG BUILT_VERSION="snapshot"
 RUN go build -buildmode=exe -ldflags="-s -w -X github.com/vx-labs/alveoli/cmd/alveoli/version.BuiltVersion=${BUILT_VERSION}" \
        -a -o /bin/alveoli ./cmd/alveoli
 
-FROM alpine as prod
+FROM alpine:3.15.4 as prod
 ENTRYPOINT ["/usr/bin/alveoli"]
 RUN apk -U add ca-certificates && \
     rm -rf /var/cache/apk/*
